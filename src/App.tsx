@@ -1,12 +1,12 @@
-import React, {useEffect, useState} from 'react';
-import {motion} from 'motion/react';
-import {CalendarDays, Heart, ImageIcon, MessageCircleHeart, Star} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { CalendarDays, Heart, ImageIcon, MessageCircleHeart, Star } from 'lucide-react';
 
 type PhotoGroup = {
   id: string;
   title: string;
   description: string;
-  images: {src: string; name: string}[];
+  images: { src: string; name: string }[];
 };
 
 const imageModules = {
@@ -111,9 +111,9 @@ export default function App() {
 
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <motion.div
-            initial={{opacity: 0, y: 20}}
-            animate={{opacity: 1, y: 0}}
-            transition={{duration: 0.8}}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl md:text-7xl font-handwriting text-rose-600 mb-6 tracking-wider">
               戴鹏和杨雯寓的小屋
@@ -126,9 +126,9 @@ export default function App() {
           </motion.div>
 
           <motion.div
-            initial={{opacity: 0, scale: 0.9}}
-            animate={{opacity: 1, scale: 1}}
-            transition={{duration: 0.8, delay: 0.3}}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
             className="inline-flex flex-col items-center justify-center p-8 bg-white/60 backdrop-blur-sm rounded-3xl shadow-xl shadow-rose-100/50 border border-rose-50"
           >
             <div className="flex items-center gap-4 text-rose-500 mb-2">
@@ -149,15 +149,15 @@ export default function App() {
         </div>
 
         <motion.div
-          animate={{y: [0, -20, 0]}}
-          transition={{repeat: Infinity, duration: 4, ease: 'easeInOut'}}
+          animate={{ y: [0, -20, 0] }}
+          transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
           className="absolute top-1/4 left-1/4 text-rose-300 opacity-50 hidden md:block"
         >
           <Heart className="w-12 h-12 fill-current" />
         </motion.div>
         <motion.div
-          animate={{y: [0, 20, 0]}}
-          transition={{repeat: Infinity, duration: 5, ease: 'easeInOut', delay: 1}}
+          animate={{ y: [0, 20, 0] }}
+          transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut', delay: 1 }}
           className="absolute bottom-1/4 right-1/4 text-rose-200 opacity-50 hidden md:block"
         >
           <Star className="w-10 h-10 fill-current" />
@@ -191,10 +191,10 @@ export default function App() {
             ].map((item, index) => (
               <motion.div
                 key={item.year}
-                initial={{opacity: 0, y: 20}}
-                whileInView={{opacity: 1, y: 0}}
-                viewport={{once: true}}
-                transition={{duration: 0.6, delay: index * 0.2}}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: index * 0.2 }}
                 className="flex flex-col md:flex-row gap-6 items-start md:items-center bg-rose-50/30 p-8 rounded-3xl border border-rose-50"
               >
                 <div className="md:w-1/3 flex-shrink-0">
@@ -215,17 +215,17 @@ export default function App() {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-handwriting text-rose-600 mb-4">我们的相册</h2>
             <div className="w-24 h-1 bg-rose-200 mx-auto rounded-full" />
-            <p className="text-stone-500 mt-6 font-serif">现在页面里的照片，全部来自你新加的三个本地文件夹。</p>
+            <p className="text-stone-500 mt-6 font-serif"></p>
           </div>
 
           <div className="space-y-14">
             {photoGroups.map((group, groupIndex) => (
               <motion.section
                 key={group.id}
-                initial={{opacity: 0, y: 24}}
-                whileInView={{opacity: 1, y: 0}}
-                viewport={{once: true}}
-                transition={{duration: 0.6, delay: groupIndex * 0.1}}
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: groupIndex * 0.1 }}
                 className="rounded-[2rem] border border-rose-100 bg-white/80 p-6 md:p-8 shadow-sm"
               >
                 <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
@@ -247,10 +247,10 @@ export default function App() {
                     {group.images.map((image, index) => (
                       <motion.figure
                         key={`${group.id}-${image.name}`}
-                        initial={{opacity: 0, scale: 0.96}}
-                        whileInView={{opacity: 1, scale: 1}}
-                        viewport={{once: true}}
-                        transition={{duration: 0.45, delay: index * 0.06}}
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        whileInView={{ opacity: 1, scale: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.45, delay: index * 0.06 }}
                         className="group overflow-hidden rounded-3xl bg-rose-50 shadow-sm"
                       >
                         <div className="aspect-[4/5] overflow-hidden">
