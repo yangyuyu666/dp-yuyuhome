@@ -95,6 +95,23 @@ function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const isToolsPage = url.hostname === 'tools.dploveyuyu.site';
+
+    // Basic Auth protection for the main cabin site (tools page remains public)
+    if (!isToolsPage && url.pathname !== '/api/health') {
+      const authHeader = request.headers.get('Authorization');
+      // 默认账号: admin, 默认密码: dploveyuyu
+      // "admin:dploveyuyu" 的 Base64 编码是 "YWRtaW46ZHBsb3ZleXV5dQ=="
+      if (authHeader !== 'Basic YWRtaW46ZHBsb3ZleXV5dQ==') {
+        return new Response('需要密码才能访问我们的小屋哦', {
+          status: 401,
+          headers: {
+            'WWW-Authenticate': 'Basic realm="Love Cabin"',
+            'Content-Type': 'text/plain; charset=utf-8',
+          },
+        });
+      }
+    }
 
     // Requests under /api/* are handled by the Worker itself.
     if (url.pathname === '/api/health') {
