@@ -3,6 +3,12 @@
   "name": "dp-yuyuhome",
   "compatibility_date": "2026-04-18",
   "main": "./worker/index.ts",
+  "routes": [
+    {
+      "pattern": "tools.dploveyuyu.site",
+      "custom_domain": true
+    }
+  ],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",

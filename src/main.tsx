@@ -4,8 +4,9 @@ import App from './App.tsx';
 import ToolsPage from './ToolsPage.tsx';
 import './index.css';
 
-const pathname = window.location.pathname;
-const Page = pathname === '/tools' ? ToolsPage : App;
+const { pathname, hostname } = window.location;
+const isToolsHost = hostname === 'tools.dploveyuyu.site';
+const Page = isToolsHost || pathname === '/tools' ? ToolsPage : App;
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
