@@ -1,13 +1,16 @@
 import { generateTotp } from './totp';
 
+// 定义 Cloudflare Workers Assets 绑定的类型
 type AssetsBinding = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 };
 
+// 定义当前 Worker 的环境变量，包含绑定的静态资产
 type Env = {
   ASSETS: AssetsBinding;
 };
 
+// 定义 HTMLRewriter 的类型结构，用于在边缘节点动态修改 HTML
 type HtmlRewriterLike = {
   on(
     selector: string,
@@ -21,17 +24,19 @@ type HtmlRewriterLike = {
   transform(response: Response): Response;
 };
 
+// 页面元数据类型，包含标题、描述和规范链接
 type PageMetadata = {
   title: string;
   description: string;
   canonical: string;
 };
 
+// 获取全局的 HTMLRewriter 构造函数。由于 TypeScript 默认环境可能不包含它，这里进行了类型转换
 const HTMLRewriterCtor = (globalThis as unknown as {
   HTMLRewriter: new () => HtmlRewriterLike;
 }).HTMLRewriter;
 
-// Keep JSON responses consistent for Worker-side API endpoints.
+// 封装一个返回 JSON 格式的辅助函数，确保所有 API 端点不被缓存
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, {
     headers: {
@@ -41,6 +46,7 @@ function json(data: unknown, init?: ResponseInit) {
   });
 }
 
+// 简单的 HTML 属性转义函数，防止注入攻击并保证 HTML 格式正确
 function escapeHtmlAttribute(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -49,6 +55,7 @@ function escapeHtmlAttribute(value: string) {
     .replaceAll('>', '&gt;');
 }
 
+// 根据当前访问的 URL，返回对应的页面 SEO 元数据
 function getPageMetadata(url: URL): PageMetadata {
   const isToolsPage = url.hostname === 'tools.dploveyuyu.site' || url.pathname === '/tools';
 
@@ -67,6 +74,7 @@ function getPageMetadata(url: URL): PageMetadata {
   };
 }
 
+// 核心 HTML 重写逻辑：拦截静态文件响应，动态注入正确的 Title 和 Meta 标签
 function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
   const canonical = escapeHtmlAttribute(metadata.canonical);
   const description = escapeHtmlAttribute(metadata.description);
@@ -75,11 +83,13 @@ function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
   return new HTMLRewriterCtor()
     .on('title', {
       element(element) {
+        // 替换 <title> 标签的内容
         element.setInnerContent(metadata.title);
       },
     })
     .on('head', {
       element(element) {
+        // 在 <head> 标签末尾追加描述、规范链接以及 OpenGraph 社交分享标签
         element.append(
           `<meta name="description" content="${description}">` +
             `<link rel="canonical" href="${canonical}">` +
@@ -92,12 +102,14 @@ function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
     .transform(response);
 }
 
+// Cloudflare Worker 的入口模块
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const isToolsPage = url.hostname === 'tools.dploveyuyu.site';
 
-    // Basic Auth protection for the main cabin site (tools page remains public)
+    // 1. Basic Auth 基础认证保护
+    // 如果不是访问工具箱，且不是访问健康检查接口，就需要输入密码
     if (!isToolsPage && url.pathname !== '/api/health') {
       const authHeader = request.headers.get('Authorization');
       // 默认账号: admin, 默认密码: dploveyuyu
@@ -113,7 +125,8 @@ export default {
       }
     }
 
-    // Requests under /api/* are handled by the Worker itself.
+    // 2. 处理内部 API 请求
+    // 健康检查接口
     if (url.pathname === '/api/health') {
       return json({
         ok: true,
@@ -122,6 +135,7 @@ export default {
       });
     }
 
+    // 2FA 验证码生成接口
     if (url.pathname === '/api/tools/totp' && request.method === 'POST') {
       try {
         const { secret } = (await request.json()) as { secret?: string };
@@ -142,14 +156,17 @@ export default {
       }
     }
 
-    // Everything else falls back to the built frontend assets.
+    // 3. 处理前端静态文件
+    // 其他所有请求直接转发给 Cloudflare Assets 获取前端打包好的文件
     const response = await env.ASSETS.fetch(request);
     const contentType = response.headers.get('content-type') ?? '';
 
+    // 如果返回的是 HTML 页面（比如 index.html），则通过 HTMLRewriter 注入 SEO 标签
     if (contentType.includes('text/html')) {
       return rewriteHtmlMetadata(response, getPageMetadata(url));
     }
 
+    // 如果是 JS、CSS、图片等静态资源，直接返回
     return response;
   },
 };
