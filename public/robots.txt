@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Host: dploveyuyu.site
+Sitemap: https://dploveyuyu.site/sitemap.xml
