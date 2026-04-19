@@ -1,16 +1,13 @@
 import { generateTotp } from './totp';
 
-// 定义 Cloudflare Workers Assets 绑定的类型
 type AssetsBinding = {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 };
 
-// 定义当前 Worker 的环境变量，包含绑定的静态资产
 type Env = {
   ASSETS: AssetsBinding;
 };
 
-// 定义 HTMLRewriter 的类型结构，用于在边缘节点动态修改 HTML
 type HtmlRewriterLike = {
   on(
     selector: string,
@@ -24,19 +21,20 @@ type HtmlRewriterLike = {
   transform(response: Response): Response;
 };
 
-// 页面元数据类型，包含标题、描述和规范链接
 type PageMetadata = {
   title: string;
   description: string;
   canonical: string;
 };
 
-// 获取全局的 HTMLRewriter 构造函数。由于 TypeScript 默认环境可能不包含它，这里进行了类型转换
 const HTMLRewriterCtor = (globalThis as unknown as {
   HTMLRewriter: new () => HtmlRewriterLike;
 }).HTMLRewriter;
 
-// 封装一个返回 JSON 格式的辅助函数，确保所有 API 端点不被缓存
+const ACCESS_COOKIE = 'love_cabin_access=verified';
+const AUTH_PATH = '/__auth';
+const ALLOWED_PASSWORD = 'dploveyuyu';
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, {
     headers: {
@@ -46,7 +44,6 @@ function json(data: unknown, init?: ResponseInit) {
   });
 }
 
-// 简单的 HTML 属性转义函数，防止注入攻击并保证 HTML 格式正确
 function escapeHtmlAttribute(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -55,7 +52,6 @@ function escapeHtmlAttribute(value: string) {
     .replaceAll('>', '&gt;');
 }
 
-// 根据当前访问的 URL，返回对应的页面 SEO 元数据
 function getPageMetadata(url: URL): PageMetadata {
   const isToolsPage = url.hostname === 'tools.dploveyuyu.site' || url.pathname === '/tools';
 
@@ -74,7 +70,6 @@ function getPageMetadata(url: URL): PageMetadata {
   };
 }
 
-// 核心 HTML 重写逻辑：拦截静态文件响应，动态注入正确的 Title 和 Meta 标签
 function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
   const canonical = escapeHtmlAttribute(metadata.canonical);
   const description = escapeHtmlAttribute(metadata.description);
@@ -83,13 +78,11 @@ function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
   return new HTMLRewriterCtor()
     .on('title', {
       element(element) {
-        // 替换 <title> 标签的内容
         element.setInnerContent(metadata.title);
       },
     })
     .on('head', {
       element(element) {
-        // 在 <head> 标签末尾追加描述、规范链接以及 OpenGraph 社交分享标签
         element.append(
           `<meta name="description" content="${description}">` +
             `<link rel="canonical" href="${canonical}">` +
@@ -102,31 +95,191 @@ function rewriteHtmlMetadata(response: Response, metadata: PageMetadata) {
     .transform(response);
 }
 
-// Cloudflare Worker 的入口模块
+function normalizeBirthday(value: string) {
+  return value.replaceAll(/\s+/g, '').replaceAll('月', '-').replaceAll('日', '').replaceAll('/', '-');
+}
+
+function isMatchingBirthday(value: string, expectedMonth: number, expectedDay: number) {
+  const normalized = normalizeBirthday(value);
+  const accepted = new Set([
+    `${expectedMonth}-${expectedDay}`,
+    `${String(expectedMonth).padStart(2, '0')}-${String(expectedDay).padStart(2, '0')}`,
+    `${expectedMonth}.${expectedDay}`,
+    `${String(expectedMonth).padStart(2, '0')}.${String(expectedDay).padStart(2, '0')}`,
+    `${expectedMonth}${expectedDay}`,
+    `${String(expectedMonth).padStart(2, '0')}${String(expectedDay).padStart(2, '0')}`,
+  ]);
+
+  return accepted.has(normalized);
+}
+
+function isAuthenticated(request: Request) {
+  const cookie = request.headers.get('Cookie') ?? '';
+  return cookie.includes(ACCESS_COOKIE);
+}
+
+function buildCookieHeader() {
+  return `${ACCESS_COOKIE}; Path=/; Max-Age=604800; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function renderAuthPage(errorMessage?: string) {
+  const errorHtml = errorMessage
+    ? `<p style="margin:0 0 18px;color:#be123c;font-size:14px;">${escapeHtmlAttribute(errorMessage)}</p>`
+    : '';
+
+  return `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>进入小屋前请回答问题</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at top, rgba(251, 207, 232, 0.45), transparent 30%),
+          linear-gradient(180deg, #fff7ed 0%, #fff1f2 45%, #fffafc 100%);
+        color: #1c1917;
+      }
+      .card {
+        width: min(92vw, 440px);
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid rgba(251, 113, 133, 0.18);
+        border-radius: 28px;
+        padding: 32px 28px;
+        box-shadow: 0 22px 60px rgba(244, 114, 182, 0.18);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+      p {
+        margin: 0 0 22px;
+        line-height: 1.7;
+        color: #57534e;
+      }
+      label {
+        display: block;
+        margin: 14px 0 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #44403c;
+      }
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        border: 1px solid #e7e5e4;
+        border-radius: 16px;
+        padding: 14px 16px;
+        font-size: 15px;
+        background: #fafaf9;
+      }
+      input:focus {
+        outline: none;
+        border-color: #fb7185;
+        background: #fff;
+      }
+      button {
+        width: 100%;
+        margin-top: 22px;
+        border: 0;
+        border-radius: 999px;
+        padding: 14px 18px;
+        font-size: 15px;
+        font-weight: 700;
+        color: white;
+        background: linear-gradient(135deg, #f43f5e, #fb7185);
+        cursor: pointer;
+      }
+      .hint {
+        margin-top: 14px;
+        font-size: 13px;
+        color: #78716c;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>进入小屋前请回答问题</h1>
+      <p>回答正确后即可进入。</p>
+      ${errorHtml}
+      <form method="post" action="${AUTH_PATH}">
+        <label for="dpBirthday">戴鹏生日</label>
+        <input id="dpBirthday" name="dpBirthday" placeholder="请输入答案" autocomplete="off" />
+
+        <label for="ywBirthday">杨雯寓生日</label>
+        <input id="ywBirthday" name="ywBirthday" placeholder="请输入答案" autocomplete="off" />
+
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" placeholder="请输入密码" autocomplete="current-password" />
+
+        <button type="submit">进入小屋</button>
+      </form>
+    </main>
+  </body>
+</html>`;
+}
+
+function html(content: string, status = 200, headers?: HeadersInit) {
+  return new Response(content, {
+    status,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      ...headers,
+    },
+  });
+}
+
+async function handleAuth(request: Request) {
+  const formData = await request.formData();
+  const dpBirthday = String(formData.get('dpBirthday') ?? '');
+  const ywBirthday = String(formData.get('ywBirthday') ?? '');
+  const password = String(formData.get('password') ?? '');
+
+  const valid =
+    isMatchingBirthday(dpBirthday, 1, 18) &&
+    isMatchingBirthday(ywBirthday, 7, 5) &&
+    password === ALLOWED_PASSWORD;
+
+  if (!valid) {
+    return html(renderAuthPage('答案不正确，请重新输入。'), 401);
+  }
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: '/',
+      'set-cookie': buildCookieHeader(),
+      'cache-control': 'no-store',
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const isToolsPage = url.hostname === 'tools.dploveyuyu.site';
+    const isToolsHost = url.hostname === 'tools.dploveyuyu.site';
+    const isPublicPath =
+      url.pathname === '/api/health' ||
+      url.pathname === '/robots.txt' ||
+      url.pathname === '/sitemap.xml';
 
-    // 1. Basic Auth 基础认证保护
-    // 如果不是访问工具箱，且不是访问健康检查接口，就需要输入密码
-    if (!isToolsPage && url.pathname !== '/api/health') {
-      const authHeader = request.headers.get('Authorization');
-      // 默认账号: admin, 默认密码: dploveyuyu
-      // "admin:dploveyuyu" 的 Base64 编码是 "YWRtaW46ZHBsb3ZleXV5dQ=="
-      if (authHeader !== 'Basic YWRtaW46ZHBsb3ZleXV5dQ==') {
-        return new Response('需要密码才能访问我们的小屋哦', {
-          status: 401,
-          headers: {
-            'WWW-Authenticate': 'Basic realm="Love Cabin"',
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        });
-      }
+    if (!isToolsHost && url.pathname === AUTH_PATH && request.method === 'POST') {
+      return handleAuth(request);
     }
 
-    // 2. 处理内部 API 请求
-    // 健康检查接口
+    if (!isToolsHost && !isPublicPath && !isAuthenticated(request)) {
+      return html(renderAuthPage(), 401);
+    }
+
     if (url.pathname === '/api/health') {
       return json({
         ok: true,
@@ -135,7 +288,6 @@ export default {
       });
     }
 
-    // 2FA 验证码生成接口
     if (url.pathname === '/api/tools/totp' && request.method === 'POST') {
       try {
         const { secret } = (await request.json()) as { secret?: string };
@@ -156,17 +308,13 @@ export default {
       }
     }
 
-    // 3. 处理前端静态文件
-    // 其他所有请求直接转发给 Cloudflare Assets 获取前端打包好的文件
     const response = await env.ASSETS.fetch(request);
     const contentType = response.headers.get('content-type') ?? '';
 
-    // 如果返回的是 HTML 页面（比如 index.html），则通过 HTMLRewriter 注入 SEO 标签
     if (contentType.includes('text/html')) {
       return rewriteHtmlMetadata(response, getPageMetadata(url));
     }
 
-    // 如果是 JS、CSS、图片等静态资源，直接返回
     return response;
   },
 };
