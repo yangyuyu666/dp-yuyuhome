@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { Archive as LibArchive } from 'libarchive.js';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
+import {
+  Archive as LibArchive,
+  ArchiveCompression,
+  ArchiveFormat,
+} from 'libarchive.js';
+import { BlobReader, BlobWriter, ZipWriter } from '@zip.js/zip.js';
 import {
   AlertTriangle,
   Archive as ArchiveIcon,
@@ -8,6 +13,7 @@ import {
   Download,
   FileArchive,
   FileJson,
+  Files,
   FolderOpen,
   Image as ImageIcon,
   KeyRound,
@@ -55,6 +61,43 @@ type ArchiveState =
   | { status: 'ready'; message: string; encrypted: boolean | null; entries: ArchiveEntryPreview[] }
   | { status: 'error'; message: string; entries: ArchiveEntryPreview[] };
 
+type CompressionSourceFile = {
+  id: string;
+  file: File;
+  path: string;
+};
+
+type CompressionPresetId = 'zip' | 'tar' | 'tar-gz' | 'tar-bz2' | 'tar-xz' | 'tar-lzma';
+
+type CompressionState =
+  | { status: 'idle'; message?: string }
+  | { status: 'compressing'; message: string }
+  | { status: 'ready'; message: string; file: File }
+  | { status: 'error'; message: string };
+
+type LegacyFileSystemEntry = {
+  name: string;
+  isFile: boolean;
+  isDirectory: boolean;
+};
+
+type LegacyFileSystemFileEntry = LegacyFileSystemEntry & {
+  file(callback: (file: File) => void, errorCallback?: (error: DOMException) => void): void;
+};
+
+type LegacyFileSystemDirectoryEntry = LegacyFileSystemEntry & {
+  createReader(): {
+    readEntries(
+      callback: (entries: LegacyFileSystemEntry[]) => void,
+      errorCallback?: (error: DOMException) => void,
+    ): void;
+  };
+};
+
+type DataTransferItemWithEntry = DataTransferItem & {
+  webkitGetAsEntry?: () => LegacyFileSystemEntry | null;
+};
+
 type WritableFileStreamLike = {
   write(data: File): Promise<void>;
   close(): Promise<void>;
@@ -94,6 +137,7 @@ async function fetchTotp(secret: string): Promise<TotpResponse> {
 const SIDEBAR_ITEMS = [
   { id: '2fa', name: '2FA 密钥计算器', icon: KeyRound },
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
+  { id: 'compress', name: '压缩工具', icon: Files },
   { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
@@ -110,6 +154,60 @@ const SUPPORTED_FORMATS = [
   'LZMA',
   'DEFLATE',
 ];
+
+const COMPRESSION_PRESETS: Record<
+  CompressionPresetId,
+  {
+    label: string;
+    extension: string;
+    format: ArchiveFormat;
+    compression: ArchiveCompression;
+    description: string;
+  }
+> = {
+  zip: {
+    label: 'ZIP',
+    extension: 'zip',
+    format: ArchiveFormat.ZIP,
+    compression: ArchiveCompression.NONE,
+    description: '通用性最好，适合日常分享',
+  },
+  tar: {
+    label: 'TAR',
+    extension: 'tar',
+    format: ArchiveFormat.USTAR,
+    compression: ArchiveCompression.NONE,
+    description: '只打包不额外压缩',
+  },
+  'tar-gz': {
+    label: 'TAR.GZ',
+    extension: 'tar.gz',
+    format: ArchiveFormat.USTAR,
+    compression: ArchiveCompression.GZIP,
+    description: 'Linux/macOS 常用格式',
+  },
+  'tar-bz2': {
+    label: 'TAR.BZ2',
+    extension: 'tar.bz2',
+    format: ArchiveFormat.USTAR,
+    compression: ArchiveCompression.BZIP2,
+    description: '体积更小，速度较慢',
+  },
+  'tar-xz': {
+    label: 'TAR.XZ',
+    extension: 'tar.xz',
+    format: ArchiveFormat.USTAR,
+    compression: ArchiveCompression.XZ,
+    description: '压缩率高，适合较大文件',
+  },
+  'tar-lzma': {
+    label: 'TAR.LZMA',
+    extension: 'tar.lzma',
+    format: ArchiveFormat.USTAR,
+    compression: ArchiveCompression.LZMA,
+    description: 'LZMA 压缩方式',
+  },
+};
 
 function formatFileSize(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -211,7 +309,11 @@ async function getSafeFileHandle(
   }
 }
 
-async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: string) {
+async function saveEntriesToFolder(
+  entries: ArchiveEntryPreview[],
+  folderName: string,
+  onProgress?: (current: number, total: number) => void,
+) {
   const directoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
 
   if (!directoryPicker) {
@@ -225,7 +327,10 @@ async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: s
     'extracted-files',
   );
 
-  for (const [entryIndex, entry] of entries.entries()) {
+  const filesToSave = entries.filter((entry) => entry.file);
+  let savedCount = 0;
+
+  for (const [entryIndex, entry] of filesToSave.entries()) {
     if (!entry.file) {
       continue;
     }
@@ -253,6 +358,8 @@ async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: s
     const writable = await fileHandle.createWritable();
     await writable.write(entry.file);
     await writable.close();
+    savedCount += 1;
+    onProgress?.(savedCount, filesToSave.length);
   }
 }
 
@@ -282,6 +389,125 @@ function flattenExtractedFiles(tree: unknown, basePath = '', files = new Map<str
   return files;
 }
 
+function sourcePathForFile(file: File, fallbackPrefix = '') {
+  const relativePath = file.webkitRelativePath || file.name;
+  const safeSegments = safePathSegments(buildEntryPath(fallbackPrefix, relativePath));
+  return safeSegments.join('/') || sanitizeFileSystemName(file.name, 'file');
+}
+
+function sourceFilesFromFileList(files: FileList | File[], fallbackPrefix = '') {
+  return Array.from(files)
+    .filter((file) => file.size >= 0)
+    .map((file, index) => {
+      const path = sourcePathForFile(file, fallbackPrefix);
+      return {
+        id: `${path}-${file.size}-${file.lastModified}-${index}`,
+        file,
+        path,
+      };
+    });
+}
+
+function readFileEntry(entry: LegacyFileSystemFileEntry, pathPrefix: string) {
+  return new Promise<CompressionSourceFile>((resolve, reject) => {
+    entry.file(
+      (file) => {
+        const path = safePathSegments(buildEntryPath(pathPrefix, entry.name)).join('/');
+        resolve({
+          id: `${path}-${file.size}-${file.lastModified}`,
+          file,
+          path,
+        });
+      },
+      (error) => reject(error),
+    );
+  });
+}
+
+function readDirectoryEntries(entry: LegacyFileSystemDirectoryEntry) {
+  const reader = entry.createReader();
+  const entries: LegacyFileSystemEntry[] = [];
+
+  return new Promise<LegacyFileSystemEntry[]>((resolve, reject) => {
+    const readBatch = () => {
+      reader.readEntries(
+        (batch) => {
+          if (batch.length === 0) {
+            resolve(entries);
+            return;
+          }
+
+          entries.push(...batch);
+          readBatch();
+        },
+        (error) => reject(error),
+      );
+    };
+
+    readBatch();
+  });
+}
+
+async function readDroppedEntry(
+  entry: LegacyFileSystemEntry,
+  pathPrefix = '',
+): Promise<CompressionSourceFile[]> {
+  if (entry.isFile) {
+    return [await readFileEntry(entry as LegacyFileSystemFileEntry, pathPrefix)];
+  }
+
+  if (!entry.isDirectory) {
+    return [];
+  }
+
+  const directory = entry as LegacyFileSystemDirectoryEntry;
+  const nextPrefix = buildEntryPath(pathPrefix, directory.name);
+  const children = await readDirectoryEntries(directory);
+  const nested = await Promise.all(children.map((child) => readDroppedEntry(child, nextPrefix)));
+  return nested.flat();
+}
+
+async function sourceFilesFromDrop(event: DragEvent<HTMLElement>) {
+  const items = Array.from(event.dataTransfer.items ?? []) as DataTransferItemWithEntry[];
+  const entries = items
+    .map((item) => item.webkitGetAsEntry?.())
+    .filter(Boolean) as LegacyFileSystemEntry[];
+
+  if (entries.length > 0) {
+    const nested = await Promise.all(entries.map((entry) => readDroppedEntry(entry)));
+    return nested.flat();
+  }
+
+  return sourceFilesFromFileList(event.dataTransfer.files ?? []);
+}
+
+function defaultArchiveName(preset: CompressionPresetId) {
+  return `archive.${COMPRESSION_PRESETS[preset].extension}`;
+}
+
+async function writeZipArchive(
+  files: CompressionSourceFile[],
+  outputFileName: string,
+  password: string,
+  onProgress?: (current: number, total: number) => void,
+) {
+  const zipWriter = new ZipWriter(new BlobWriter('application/zip'), {
+    password: password || undefined,
+    encryptionStrength: 3,
+  });
+
+  for (const [index, item] of files.entries()) {
+    await zipWriter.add(item.path, new BlobReader(item.file), {
+      password: password || undefined,
+      encryptionStrength: 3,
+    });
+    onProgress?.(index + 1, files.length);
+  }
+
+  const blob = await zipWriter.close();
+  return new File([blob], outputFileName, { type: 'application/zip' });
+}
+
 export default function ToolsPage() {
   const [activeTab, setActiveTab] = useState<(typeof SIDEBAR_ITEMS)[number]['id']>('2fa');
 
@@ -295,9 +521,19 @@ export default function ToolsPage() {
   const [archiveState, setArchiveState] = useState<ArchiveState>({ status: 'idle' });
   const [isArchiveDragActive, setIsArchiveDragActive] = useState(false);
   const [folderSaveState, setFolderSaveState] = useState<
-    { status: 'idle' } | { status: 'saving' } | { status: 'saved'; message: string } | { status: 'error'; message: string }
+    | { status: 'idle' }
+    | { status: 'saving'; current: number; total: number }
+    | { status: 'saved'; message: string; current: number; total: number }
+    | { status: 'error'; message: string }
   >({ status: 'idle' });
   const archiveBusy = archiveState.status === 'reading' || archiveState.status === 'extracting';
+
+  const [compressionFiles, setCompressionFiles] = useState<CompressionSourceFile[]>([]);
+  const [compressionPreset, setCompressionPreset] = useState<CompressionPresetId>('zip');
+  const [compressionPassword, setCompressionPassword] = useState('');
+  const [compressionOutputName, setCompressionOutputName] = useState(defaultArchiveName('zip'));
+  const [compressionState, setCompressionState] = useState<CompressionState>({ status: 'idle' });
+  const [isCompressionDragActive, setIsCompressionDragActive] = useState(false);
 
   useEffect(() => {
     if (!activeSecret) {
@@ -454,6 +690,100 @@ export default function ToolsPage() {
       }));
     } finally {
       await archive?.close().catch(() => undefined);
+    }
+  };
+
+  const compressionTotalSize = useMemo(
+    () => compressionFiles.reduce((total, item) => total + item.file.size, 0),
+    [compressionFiles],
+  );
+
+  const setCompressionPresetAndName = (presetId: CompressionPresetId) => {
+    setCompressionPreset(presetId);
+    const extension = COMPRESSION_PRESETS[presetId].extension;
+    const baseName = compressionOutputName
+      .replace(/\.(tar\.(gz|bz2|xz|lzma)|t[gbx]z|zip|7z|rar|tar|gz|bz2|xz|lzma)$/i, '')
+      .trim() || 'archive';
+    setCompressionOutputName(`${baseName}.${extension}`);
+    setCompressionState({ status: 'idle' });
+  };
+
+  const addCompressionFiles = (files: CompressionSourceFile[]) => {
+    if (files.length === 0) {
+      return;
+    }
+
+    setCompressionFiles((current) => {
+      const next = new Map(current.map((item) => [item.path, item]));
+      files.forEach((item) => next.set(item.path, item));
+      return Array.from(next.values()).sort((left, right) => left.path.localeCompare(right.path, 'zh-CN'));
+    });
+    setCompressionState({ status: 'idle', message: `已加入 ${files.length} 个文件` });
+  };
+
+  const createCompressedArchive = async () => {
+    if (compressionFiles.length === 0) {
+      setCompressionState({ status: 'error', message: '请先选择文件或文件夹' });
+      return;
+    }
+
+    const preset = COMPRESSION_PRESETS[compressionPreset];
+    const outputFileName = compressionOutputName.trim().endsWith(`.${preset.extension}`)
+      ? sanitizeFileSystemName(compressionOutputName.trim(), defaultArchiveName(compressionPreset))
+      : sanitizeFileSystemName(
+          `${compressionOutputName.trim() || 'archive'}.${preset.extension}`,
+          defaultArchiveName(compressionPreset),
+        );
+    const password = compressionPassword.trim();
+
+    if (password && compressionPreset !== 'zip') {
+      setCompressionState({ status: 'error', message: '当前只有 ZIP 压缩支持设置密码' });
+      return;
+    }
+
+    setCompressionState({
+      status: 'compressing',
+      message: `正在前端压缩 ${compressionFiles.length} 个文件...`,
+    });
+
+    try {
+      const archiveFile =
+        compressionPreset === 'zip'
+          ? await writeZipArchive(compressionFiles, outputFileName, password, (current, total) => {
+              setCompressionState({
+                status: 'compressing',
+                message: `正在写入 ZIP：${current}/${total} 个文件...`,
+              });
+            })
+          : await LibArchive.write({
+              files: compressionFiles.map((item) => ({
+                file: item.file,
+                pathname: item.path,
+              })) as never,
+              outputFileName,
+              compression: preset.compression,
+              format: preset.format,
+              passphrase: null,
+            });
+
+      if (archiveFile.size === 0) {
+        throw new Error('压缩结果为空，请换一种压缩方式后重试');
+      }
+
+      setCompressionOutputName(outputFileName);
+      setCompressionState({
+        status: 'ready',
+        message: `已生成 ${outputFileName}（${formatFileSize(archiveFile.size)}）`,
+        file: archiveFile,
+      });
+    } catch (error) {
+      setCompressionState({
+        status: 'error',
+        message:
+          error instanceof Error
+            ? error.message
+            : '压缩失败，请换一种压缩方式或减少文件数量后重试',
+      });
     }
   };
 
@@ -871,6 +1201,25 @@ export default function ToolsPage() {
                             {folderSaveState.message}
                           </p>
                         )}
+                        {(folderSaveState.status === 'saving' || folderSaveState.status === 'saved') && (
+                          <div className="mt-2 w-64 max-w-full">
+                            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full rounded-full bg-emerald-500 transition-[width] duration-200"
+                                style={{
+                                  width: `${
+                                    folderSaveState.total > 0
+                                      ? (folderSaveState.current / folderSaveState.total) * 100
+                                      : 0
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {folderSaveState.current}/{folderSaveState.total} 个文件
+                            </p>
+                          </div>
+                        )}
                         {folderSaveState.status === 'error' && (
                           <p className="mt-1 text-xs font-medium text-red-600">
                             {folderSaveState.message}
@@ -885,14 +1234,18 @@ export default function ToolsPage() {
                             return;
                           }
 
-                          setFolderSaveState({ status: 'saving' });
+                          setFolderSaveState({ status: 'saving', current: 0, total: extractedEntries.length });
 
                           try {
                             const folderName = archiveFolderName(archiveFile.name);
-                            await saveEntriesToFolder(extractedEntries, folderName);
+                            await saveEntriesToFolder(extractedEntries, folderName, (current, total) => {
+                              setFolderSaveState({ status: 'saving', current, total });
+                            });
                             setFolderSaveState({
                               status: 'saved',
                               message: `已保存到文件夹：${folderName}`,
+                              current: extractedEntries.length,
+                              total: extractedEntries.length,
                             });
                           } catch (error) {
                             if (error instanceof DOMException && error.name === 'AbortError') {
@@ -925,7 +1278,278 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {activeTab !== '2fa' && activeTab !== 'extract' && (
+          {activeTab === 'compress' && (
+            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-900">前端压缩</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    选择文件或整个文件夹，在浏览器中生成压缩包，不上传服务器。
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700">
+                  <ArchiveIcon className="h-4 w-4" />
+                  Browser + WebAssembly
+                </div>
+              </div>
+
+              <section className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div
+                      onDragEnter={(event) => {
+                        event.preventDefault();
+                        setIsCompressionDragActive(true);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'copy';
+                        setIsCompressionDragActive(true);
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault();
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                          setIsCompressionDragActive(false);
+                        }
+                      }}
+                      onDrop={async (event) => {
+                        event.preventDefault();
+                        setIsCompressionDragActive(false);
+                        addCompressionFiles(await sourceFilesFromDrop(event));
+                      }}
+                      className={`flex min-h-52 flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-10 text-center transition ${
+                        isCompressionDragActive
+                          ? 'border-violet-500 bg-violet-50 ring-4 ring-violet-100'
+                          : 'border-slate-300 bg-slate-50'
+                      }`}
+                    >
+                      <UploadCloud className="h-10 w-10 text-violet-500" />
+                      <span className="mt-4 text-base font-semibold text-slate-900">
+                        拖入文件或文件夹
+                      </span>
+                      <span className="mt-2 text-sm leading-6 text-slate-500">
+                        也可以点击下面按钮选择多个文件，或选择整个文件夹并保留目录结构
+                      </span>
+                      <div className="mt-5 flex flex-wrap justify-center gap-3">
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700">
+                          <Files className="h-4 w-4" />
+                          选择文件
+                          <input
+                            type="file"
+                            multiple
+                            className="sr-only"
+                            onChange={(event) => {
+                              addCompressionFiles(sourceFilesFromFileList(event.target.files ?? []));
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+                          <FolderOpen className="h-4 w-4" />
+                          选择文件夹
+                          <input
+                            type="file"
+                            multiple
+                            className="sr-only"
+                            {...{ webkitdirectory: '', directory: '' }}
+                            onChange={(event) => {
+                              addCompressionFiles(sourceFilesFromFileList(event.target.files ?? []));
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          已选择 {compressionFiles.length} 个文件
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          总大小 {formatFileSize(compressionTotalSize)}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={compressionFiles.length === 0 || compressionState.status === 'compressing'}
+                        onClick={() => {
+                          setCompressionFiles([]);
+                          setCompressionState({ status: 'idle' });
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        清空
+                      </button>
+                    </div>
+
+                    {compressionFiles.length > 0 && (
+                      <div className="mt-4 max-h-72 overflow-y-auto rounded-2xl border border-slate-200">
+                        <div className="divide-y divide-slate-100">
+                          {compressionFiles.map((item) => (
+                            <div
+                              key={item.id}
+                              className="grid grid-cols-[1fr_auto] items-center gap-3 px-4 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-slate-900">
+                                  {item.path}
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  {formatFileSize(item.file.size)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="移除待压缩文件"
+                                onClick={() => {
+                                  setCompressionFiles((current) =>
+                                    current.filter((file) => file.id !== item.id),
+                                  );
+                                }}
+                                className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h2 className="text-base font-semibold text-slate-900">压缩设置</h2>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                      {(Object.entries(COMPRESSION_PRESETS) as [CompressionPresetId, (typeof COMPRESSION_PRESETS)[CompressionPresetId]][]).map(
+                        ([presetId, preset]) => (
+                          <button
+                            key={presetId}
+                            type="button"
+                            onClick={() => setCompressionPresetAndName(presetId)}
+                            className={`rounded-2xl border p-4 text-left transition ${
+                              compressionPreset === presetId
+                                ? 'border-violet-400 bg-violet-50 ring-4 ring-violet-100'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className="text-sm font-semibold text-slate-900">{preset.label}</span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              {preset.description}
+                            </span>
+                          </button>
+                        ),
+                      )}
+                    </div>
+
+                    <div className="mt-5 space-y-2">
+                      <label
+                        htmlFor="compression-output-name"
+                        className="block text-sm font-medium text-slate-700"
+                      >
+                        输出文件名
+                      </label>
+                      <input
+                        id="compression-output-name"
+                        value={compressionOutputName}
+                        onChange={(event) => {
+                          setCompressionOutputName(event.target.value);
+                          setCompressionState({ status: 'idle' });
+                        }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+                      />
+                    </div>
+
+                    <div className="mt-5 space-y-2">
+                      <label
+                        htmlFor="compression-password"
+                        className="flex items-center gap-2 text-sm font-medium text-slate-700"
+                      >
+                        <LockKeyhole className="h-4 w-4 text-slate-400" />
+                        压缩密码
+                      </label>
+                      <input
+                        id="compression-password"
+                        value={compressionPassword}
+                        onChange={(event) => {
+                          setCompressionPassword(event.target.value);
+                          setCompressionState({ status: 'idle' });
+                        }}
+                        type="password"
+                        placeholder="仅 ZIP 支持密码；不需要可留空"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={compressionFiles.length === 0 || compressionState.status === 'compressing'}
+                      onClick={() => void createCompressedArchive()}
+                      className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {compressionState.status === 'compressing' ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ArchiveIcon className="h-4 w-4" />
+                      )}
+                      开始压缩
+                    </button>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">压缩结果</h2>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {compressionState.message ?? '生成后可下载压缩包。'}
+                        </p>
+                      </div>
+                      {compressionState.status === 'ready' && (
+                        <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                      )}
+                      {compressionState.status === 'error' && (
+                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+
+                    {compressionState.status === 'compressing' && (
+                      <div className="mt-5">
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full w-2/3 animate-pulse rounded-full bg-violet-500" />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-500">
+                          大文件会占用较多内存，请保持页面打开。
+                        </p>
+                      </div>
+                    )}
+
+                    {compressionState.status === 'ready' && (
+                      <button
+                        type="button"
+                        onClick={() => downloadFile(compressionState.file, compressionState.file.name)}
+                        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        <Download className="h-4 w-4" />
+                        下载压缩包
+                      </button>
+                    )}
+
+                    {compressionState.status === 'error' && (
+                      <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
+                        {compressionState.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
               <LayoutGrid className="h-12 w-12 opacity-20" />
               <p>该工具正在开发中，敬请期待...</p>

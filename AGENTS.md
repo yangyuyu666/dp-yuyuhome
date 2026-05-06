@@ -14,7 +14,7 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 
 - `src/main.tsx`: chooses between `App` and `ToolsPage`.
 - `src/App.tsx`: the main memory/photo site.
-- `src/ToolsPage.tsx`: tools dashboard. Current tools include 2FA and browser-side archive extraction.
+- `src/ToolsPage.tsx`: tools dashboard. Current tools include 2FA, browser-side archive extraction, and browser-side archive creation.
 - `src/index.css`: Tailwind import, theme fonts, global body styles.
 - `worker/index.ts`: Cloudflare Worker entry, auth gate, metadata rewrite, API routes.
 - `worker/totp.ts`: TOTP generation logic for `/api/tools/totp`.
@@ -50,6 +50,15 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 - After extraction, users can download single files or use `保存为文件夹`.
 - `保存为文件夹` uses the browser File System Access API, so it mainly works in Chrome and Edge.
 - File and folder names must be sanitized before calling `getDirectoryHandle` or `getFileHandle`; otherwise Chromium may throw `Name is not allowed`.
+
+### Archive Creation
+
+- Archive creation is also done in the browser.
+- ZIP creation uses `@zip.js/zip.js` because `libarchive.js` currently writes empty ZIP/7z files in browser testing.
+- ZIP supports optional password encryption through `zip.js`.
+- TAR, TAR.GZ, TAR.BZ2, TAR.XZ, and TAR.LZMA use `libarchive.js`.
+- The compression tool accepts multiple files, whole folders via `webkitdirectory`, and drag-and-drop files/folders.
+- Folder uploads rely on browser-specific file path APIs; Chrome and Edge are the practical target browsers.
 
 ## Common Commands
 
