@@ -8,6 +8,7 @@ import {
   Download,
   FileArchive,
   FileJson,
+  FolderOpen,
   Image as ImageIcon,
   KeyRound,
   LayoutGrid,
@@ -53,6 +54,25 @@ type ArchiveState =
   | { status: 'extracting'; message: string; encrypted: boolean | null; entries: ArchiveEntryPreview[] }
   | { status: 'ready'; message: string; encrypted: boolean | null; entries: ArchiveEntryPreview[] }
   | { status: 'error'; message: string; entries: ArchiveEntryPreview[] };
+
+type WritableFileStreamLike = {
+  write(data: File): Promise<void>;
+  close(): Promise<void>;
+};
+
+type FileHandleLike = {
+  createWritable(): Promise<WritableFileStreamLike>;
+};
+
+type DirectoryHandleLike = {
+  getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandleLike>;
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandleLike>;
+};
+
+type DirectoryPickerWindow = Window &
+  typeof globalThis & {
+    showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<DirectoryHandleLike>;
+  };
 
 async function fetchTotp(secret: string): Promise<TotpResponse> {
   const response = await fetch('/api/tools/totp', {
@@ -128,6 +148,53 @@ function downloadFile(file: File, path: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function archiveFolderName(fileName: string) {
+  return (
+    fileName
+      .replace(/\.(tar\.(gz|bz2|xz|lzma)|t[gbx]z|zip|7z|rar|tar|gz|bz2|xz|lzma)$/i, '')
+      .trim() || 'extracted-files'
+  );
+}
+
+function safePathSegments(path: string) {
+  return path
+    .replaceAll('\\', '/')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && segment !== '.' && segment !== '..')
+    .map((segment) => segment.replace(/[<>:"|?*\u0000-\u001f]/g, '_'));
+}
+
+async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: string) {
+  const directoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
+
+  if (!directoryPicker) {
+    throw new Error('当前浏览器不支持直接保存文件夹，请使用 Chrome 或 Edge 打开工具页');
+  }
+
+  const parentDirectory = await directoryPicker({ mode: 'readwrite' });
+  const outputDirectory = await parentDirectory.getDirectoryHandle(folderName, { create: true });
+
+  for (const entry of entries) {
+    if (!entry.file) {
+      continue;
+    }
+
+    const segments = safePathSegments(entry.path);
+    const fileName = segments.pop() || entry.file.name || 'extracted-file';
+    let targetDirectory = outputDirectory;
+
+    for (const segment of segments) {
+      targetDirectory = await targetDirectory.getDirectoryHandle(segment, { create: true });
+    }
+
+    const fileHandle = await targetDirectory.getFileHandle(fileName, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(entry.file);
+    await writable.close();
+  }
+}
+
 function flattenExtractedFiles(tree: unknown, basePath = '', files = new Map<string, File>()) {
   if (tree instanceof File) {
     const path = buildEntryPath(basePath, tree.name);
@@ -165,6 +232,9 @@ export default function ToolsPage() {
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [archivePassword, setArchivePassword] = useState('');
   const [archiveState, setArchiveState] = useState<ArchiveState>({ status: 'idle' });
+  const [folderSaveState, setFolderSaveState] = useState<
+    { status: 'idle' } | { status: 'saving' } | { status: 'saved'; message: string } | { status: 'error'; message: string }
+  >({ status: 'idle' });
   const archiveBusy = archiveState.status === 'reading' || archiveState.status === 'extracting';
 
   useEffect(() => {
@@ -235,6 +305,7 @@ export default function ToolsPage() {
   };
 
   const readArchive = async (file: File, mode: 'list' | 'extract') => {
+    setFolderSaveState({ status: 'idle' });
     setArchiveState({
       status: 'reading',
       message: mode === 'list' ? '正在读取压缩包目录...' : '正在准备解压...',
@@ -552,6 +623,7 @@ export default function ToolsPage() {
                         onChange={(event) => {
                           const file = event.target.files?.[0] ?? null;
                           setArchiveFile(file);
+                          setFolderSaveState({ status: 'idle' });
                           setArchiveState(
                             file
                               ? { status: 'idle', message: `已选择：${file.name}` }
@@ -578,6 +650,7 @@ export default function ToolsPage() {
                             onClick={() => {
                               setArchiveFile(null);
                               setArchiveState({ status: 'idle' });
+                              setFolderSaveState({ status: 'idle' });
                             }}
                             className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                           >
@@ -721,24 +794,61 @@ export default function ToolsPage() {
 
                   {extractedEntries.length > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
-                      <p className="text-xs text-slate-500">
-                        已解压 {extractedEntries.length} 个文件，可逐个下载到本地。
-                      </p>
+                      <div>
+                        <p className="text-xs text-slate-500">
+                          已解压 {extractedEntries.length} 个文件。推荐保存为文件夹，会保留压缩包内的目录结构。
+                        </p>
+                        {folderSaveState.status === 'saved' && (
+                          <p className="mt-1 text-xs font-medium text-emerald-700">
+                            {folderSaveState.message}
+                          </p>
+                        )}
+                        {folderSaveState.status === 'error' && (
+                          <p className="mt-1 text-xs font-medium text-red-600">
+                            {folderSaveState.message}
+                          </p>
+                        )}
+                      </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          extractedEntries.forEach((entry, index) => {
-                            window.setTimeout(() => {
-                              if (entry.file) {
-                                downloadFile(entry.file, entry.path);
-                              }
-                            }, index * 150);
-                          });
+                        disabled={folderSaveState.status === 'saving'}
+                        onClick={async () => {
+                          if (!archiveFile) {
+                            return;
+                          }
+
+                          setFolderSaveState({ status: 'saving' });
+
+                          try {
+                            const folderName = archiveFolderName(archiveFile.name);
+                            await saveEntriesToFolder(extractedEntries, folderName);
+                            setFolderSaveState({
+                              status: 'saved',
+                              message: `已保存到文件夹：${folderName}`,
+                            });
+                          } catch (error) {
+                            if (error instanceof DOMException && error.name === 'AbortError') {
+                              setFolderSaveState({ status: 'idle' });
+                              return;
+                            }
+
+                            setFolderSaveState({
+                              status: 'error',
+                              message:
+                                error instanceof Error
+                                  ? error.message
+                                  : '保存文件夹失败，请检查浏览器权限后重试',
+                            });
+                          }
                         }}
-                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <Download className="h-4 w-4" />
-                        全部下载
+                        {folderSaveState.status === 'saving' ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FolderOpen className="h-4 w-4" />
+                        )}
+                        保存为文件夹
                       </button>
                     </div>
                   )}
