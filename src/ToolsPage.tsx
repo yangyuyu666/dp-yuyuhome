@@ -149,11 +149,25 @@ function downloadFile(file: File, path: string) {
 }
 
 function archiveFolderName(fileName: string) {
-  return (
+  return sanitizeFileSystemName(
     fileName
       .replace(/\.(tar\.(gz|bz2|xz|lzma)|t[gbx]z|zip|7z|rar|tar|gz|bz2|xz|lzma)$/i, '')
-      .trim() || 'extracted-files'
+      .trim(),
+    'extracted-files',
   );
+}
+
+function sanitizeFileSystemName(name: string, fallback = 'item') {
+  const sanitized = name
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/[. ]+$/g, '')
+    .trim();
+  const usableName = sanitized && sanitized !== '.' && sanitized !== '..' ? sanitized : fallback;
+  const safeName = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(usableName)
+    ? `_${usableName}`
+    : usableName;
+
+  return safeName.slice(0, 180);
 }
 
 function safePathSegments(path: string) {
@@ -162,7 +176,7 @@ function safePathSegments(path: string) {
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment && segment !== '.' && segment !== '..')
-    .map((segment) => segment.replace(/[<>:"|?*\u0000-\u001f]/g, '_'));
+    .map((segment, index) => sanitizeFileSystemName(segment, `item-${index + 1}`));
 }
 
 async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: string) {
@@ -232,6 +246,7 @@ export default function ToolsPage() {
   const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [archivePassword, setArchivePassword] = useState('');
   const [archiveState, setArchiveState] = useState<ArchiveState>({ status: 'idle' });
+  const [isArchiveDragActive, setIsArchiveDragActive] = useState(false);
   const [folderSaveState, setFolderSaveState] = useState<
     { status: 'idle' } | { status: 'saving' } | { status: 'saved'; message: string } | { status: 'error'; message: string }
   >({ status: 'idle' });
@@ -304,11 +319,21 @@ export default function ToolsPage() {
     setActiveSecret(normalized);
   };
 
-  const readArchive = async (file: File, mode: 'list' | 'extract') => {
+  const selectArchiveFile = (file: File | null) => {
+    setArchiveFile(file);
+    setFolderSaveState({ status: 'idle' });
+    setArchiveState(
+      file
+        ? { status: 'idle', message: `已选择：${file.name}` }
+        : { status: 'idle' },
+    );
+  };
+
+  const readArchive = async (file: File) => {
     setFolderSaveState({ status: 'idle' });
     setArchiveState({
       status: 'reading',
-      message: mode === 'list' ? '正在读取压缩包目录...' : '正在准备解压...',
+      message: '正在读取目录并准备解压...',
     });
 
     let archive: Awaited<ReturnType<typeof LibArchive.open>> | null = null;
@@ -338,17 +363,6 @@ export default function ToolsPage() {
             status: 'waiting' as const,
           };
         });
-
-      if (mode === 'list') {
-        setArchiveState({
-          status: 'listed',
-          message: entries.length > 0 ? `识别到 ${entries.length} 个文件` : '没有识别到可解压的文件',
-          encrypted,
-          entries,
-        });
-        await archive.close();
-        return;
-      }
 
       if (encrypted && !archivePassword.trim()) {
         setArchiveState({
@@ -607,11 +621,35 @@ export default function ToolsPage() {
                   <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                     <label
                       htmlFor="archive-file"
-                      className="flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-violet-300 hover:bg-violet-50/50"
+                      onDragEnter={(event) => {
+                        event.preventDefault();
+                        setIsArchiveDragActive(true);
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'copy';
+                        setIsArchiveDragActive(true);
+                      }}
+                      onDragLeave={(event) => {
+                        event.preventDefault();
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                          setIsArchiveDragActive(false);
+                        }
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        setIsArchiveDragActive(false);
+                        selectArchiveFile(event.dataTransfer.files?.[0] ?? null);
+                      }}
+                      className={`flex min-h-52 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 py-10 text-center transition ${
+                        isArchiveDragActive
+                          ? 'border-violet-500 bg-violet-50 ring-4 ring-violet-100'
+                          : 'border-slate-300 bg-slate-50 hover:border-violet-300 hover:bg-violet-50/50'
+                      }`}
                     >
                       <UploadCloud className="h-10 w-10 text-violet-500" />
                       <span className="mt-4 text-base font-semibold text-slate-900">
-                        选择压缩包文件
+                        拖入压缩包，或点击选择文件
                       </span>
                       <span className="mt-2 text-sm leading-6 text-slate-500">
                         zip、7z、rar、tar、tar.gz、tgz、gz、bz2、xz、lzma 等格式会在本机浏览器里解压
@@ -621,14 +659,8 @@ export default function ToolsPage() {
                         type="file"
                         className="sr-only"
                         onChange={(event) => {
-                          const file = event.target.files?.[0] ?? null;
-                          setArchiveFile(file);
-                          setFolderSaveState({ status: 'idle' });
-                          setArchiveState(
-                            file
-                              ? { status: 'idle', message: `已选择：${file.name}` }
-                              : { status: 'idle' },
-                          );
+                          selectArchiveFile(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = '';
                         }}
                       />
                     </label>
@@ -648,9 +680,7 @@ export default function ToolsPage() {
                             type="button"
                             aria-label="移除文件"
                             onClick={() => {
-                              setArchiveFile(null);
-                              setArchiveState({ status: 'idle' });
-                              setFolderSaveState({ status: 'idle' });
+                              selectArchiveFile(null);
                             }}
                             className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
                           >
@@ -682,16 +712,7 @@ export default function ToolsPage() {
                       <button
                         type="button"
                         disabled={!archiveFile || archiveBusy}
-                        onClick={() => archiveFile && void readArchive(archiveFile, 'list')}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <FileArchive className="h-4 w-4" />
-                        查看目录
-                      </button>
-                      <button
-                        type="button"
-                        disabled={!archiveFile || archiveBusy}
-                        onClick={() => archiveFile && void readArchive(archiveFile, 'extract')}
+                        onClick={() => archiveFile && void readArchive(archiveFile)}
                         className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {archiveBusy ? (
@@ -699,7 +720,7 @@ export default function ToolsPage() {
                         ) : (
                           <ArchiveIcon className="h-4 w-4" />
                         )}
-                        开始解压
+                        查看并解压
                       </button>
                     </div>
                   </div>
@@ -724,7 +745,7 @@ export default function ToolsPage() {
                     <div>
                       <h2 className="text-base font-semibold text-slate-900">解压结果</h2>
                       <p className="mt-1 text-xs text-slate-500">
-                        {archiveState.message ?? '选择文件后可以先查看目录，再执行解压。'}
+                        {archiveState.message ?? '选择或拖入压缩包后，点击“查看并解压”。'}
                       </p>
                     </div>
                     {archiveState.status === 'ready' && (
@@ -787,7 +808,7 @@ export default function ToolsPage() {
                     <div className="flex min-h-96 flex-col items-center justify-center gap-3 px-8 text-center text-slate-400">
                       <FileArchive className="h-12 w-12 opacity-30" />
                       <p className="text-sm leading-6">
-                        还没有解压结果。选择一个压缩包后，点击“查看目录”或“开始解压”。
+                        还没有解压结果。选择或拖入一个压缩包后，点击“查看并解压”。
                       </p>
                     </div>
                   )}
