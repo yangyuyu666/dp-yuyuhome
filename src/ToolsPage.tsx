@@ -159,7 +159,9 @@ function archiveFolderName(fileName: string) {
 
 function sanitizeFileSystemName(name: string, fallback = 'item') {
   const sanitized = name
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .normalize('NFC')
+    .replace(/[<>:"/\\|?*\u0000-\u001f\u007f-\u009f]/g, '_')
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
     .replace(/[. ]+$/g, '')
     .trim();
   const usableName = sanitized && sanitized !== '.' && sanitized !== '..' ? sanitized : fallback;
@@ -167,7 +169,7 @@ function sanitizeFileSystemName(name: string, fallback = 'item') {
     ? `_${usableName}`
     : usableName;
 
-  return safeName.slice(0, 180);
+  return safeName.slice(0, 120).replace(/[. ]+$/g, '') || fallback;
 }
 
 function safePathSegments(path: string) {
@@ -179,6 +181,36 @@ function safePathSegments(path: string) {
     .map((segment, index) => sanitizeFileSystemName(segment, `item-${index + 1}`));
 }
 
+function fileExtension(name: string) {
+  const safeName = sanitizeFileSystemName(name, '');
+  const extensionMatch = safeName.match(/(\.[A-Za-z0-9]{1,12})$/);
+  return extensionMatch?.[1] ?? '';
+}
+
+async function getSafeDirectoryHandle(
+  directory: DirectoryHandleLike,
+  name: string,
+  fallback: string,
+) {
+  try {
+    return await directory.getDirectoryHandle(name, { create: true });
+  } catch (error) {
+    return directory.getDirectoryHandle(sanitizeFileSystemName(fallback, 'folder'), { create: true });
+  }
+}
+
+async function getSafeFileHandle(
+  directory: DirectoryHandleLike,
+  name: string,
+  fallback: string,
+) {
+  try {
+    return await directory.getFileHandle(name, { create: true });
+  } catch (error) {
+    return directory.getFileHandle(sanitizeFileSystemName(fallback, 'file'), { create: true });
+  }
+}
+
 async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: string) {
   const directoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker;
 
@@ -187,22 +219,37 @@ async function saveEntriesToFolder(entries: ArchiveEntryPreview[], folderName: s
   }
 
   const parentDirectory = await directoryPicker({ mode: 'readwrite' });
-  const outputDirectory = await parentDirectory.getDirectoryHandle(folderName, { create: true });
+  const outputDirectory = await getSafeDirectoryHandle(
+    parentDirectory,
+    sanitizeFileSystemName(folderName, 'extracted-files'),
+    'extracted-files',
+  );
 
-  for (const entry of entries) {
+  for (const [entryIndex, entry] of entries.entries()) {
     if (!entry.file) {
       continue;
     }
 
     const segments = safePathSegments(entry.path);
-    const fileName = segments.pop() || entry.file.name || 'extracted-file';
+    const fileName = sanitizeFileSystemName(
+      segments.pop() || entry.file.name,
+      `file-${entryIndex + 1}${fileExtension(entry.file.name)}`,
+    );
     let targetDirectory = outputDirectory;
 
-    for (const segment of segments) {
-      targetDirectory = await targetDirectory.getDirectoryHandle(segment, { create: true });
+    for (const [segmentIndex, segment] of segments.entries()) {
+      targetDirectory = await getSafeDirectoryHandle(
+        targetDirectory,
+        segment,
+        `folder-${segmentIndex + 1}`,
+      );
     }
 
-    const fileHandle = await targetDirectory.getFileHandle(fileName, { create: true });
+    const fileHandle = await getSafeFileHandle(
+      targetDirectory,
+      fileName,
+      `file-${entryIndex + 1}${fileExtension(fileName || entry.file.name)}`,
+    );
     const writable = await fileHandle.createWritable();
     await writable.write(entry.file);
     await writable.close();
