@@ -34,17 +34,22 @@ const DEFAULT_ITEMS: RouletteItem[] = [
 ];
 
 const WHEEL_COLORS = [
-  '#ff8fa3',
-  '#ffb3c6',
-  '#fb6f92',
-  '#f8961e',
-  '#f9c74f',
-  '#90be6d',
-  '#43aa8b',
-  '#4d908e',
-  '#577590',
-  '#277da1',
+  '#FF6B6B',
+  '#FFA502',
+  '#FFD166',
+  '#06D6A0',
+  '#118AB2',
+  '#8338EC',
+  '#FF85A1',
+  '#00C9A7',
+  '#F77F00',
+  '#7209B7',
 ];
+
+const SVG_SIZE = 520;
+const WHEEL_R = 240;
+const CX = SVG_SIZE / 2;
+const CY = SVG_SIZE / 2;
 
 function makeId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
@@ -114,6 +119,22 @@ function buildCookieData(title: string, items: RouletteItem[], lastPicked?: stri
   });
 }
 
+function polarToXY(angleDeg: number, r: number) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180;
+  return { x: CX + r * Math.cos(rad), y: CY + r * Math.sin(rad) };
+}
+
+function slicePath(startDeg: number, endDeg: number, r: number) {
+  const s = polarToXY(startDeg, r);
+  const e = polarToXY(endDeg, r);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M${CX},${CY} L${s.x},${s.y} A${r},${r} 0 ${large} 1 ${e.x},${e.y} Z`;
+}
+
+function truncateText(text: string, max: number) {
+  return text.length > max ? text.slice(0, max) + '…' : text;
+}
+
 export default function RoulettePage() {
   const [title, setTitle] = useState(DEFAULT_TITLE);
   const [items, setItems] = useState<RouletteItem[]>(DEFAULT_ITEMS);
@@ -142,20 +163,6 @@ export default function RoulettePage() {
   const activeItems = useMemo(() => normalizeItems(items), [items]);
   const itemCount = activeItems.length;
   const sliceAngle = itemCount > 0 ? 360 / itemCount : 360;
-
-  const wheelGradient = useMemo(() => {
-    if (itemCount === 0) {
-      return '#f8fafc';
-    }
-
-    return `conic-gradient(from 90deg, ${activeItems
-      .map((_, index) => {
-        const start = index * sliceAngle;
-        const end = (index + 1) * sliceAngle;
-        return `${WHEEL_COLORS[index % WHEEL_COLORS.length]} ${start}deg ${end - 0.5}deg, transparent ${end - 0.5}deg ${end}deg`;
-      })
-      .join(', ')})`;
-  }, [activeItems, itemCount, sliceAngle]);
 
   const saveToCookie = (nextLastPicked = lastPicked) => {
     const payload = buildCookieData(title, activeItems, nextLastPicked);
@@ -195,9 +202,8 @@ export default function RoulettePage() {
 
     const selectedIndex = Math.floor(Math.random() * itemCount);
     const targetCenter = selectedIndex * sliceAngle + sliceAngle / 2;
-    const pointerAngle = 270;
     const extraTurns = 6 + Math.floor(Math.random() * 4);
-    const nextRotation = rotation + extraTurns * 360 + pointerAngle - targetCenter;
+    const nextRotation = rotation + extraTurns * 360 + (360 - targetCenter);
     const picked = activeItems[selectedIndex].text;
 
     setIsSpinning(true);
@@ -207,12 +213,12 @@ export default function RoulettePage() {
       setIsSpinning(false);
       setLastPicked(picked);
       saveToCookie(picked);
-      
+
       confetti({
         particleCount: 150,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#ff8fa3', '#f8961e', '#f9c74f', '#90be6d', '#43aa8b'],
+        colors: ['#FF6B6B', '#FFA502', '#FFD166', '#06D6A0', '#118AB2'],
       });
     }, 4500);
   };
@@ -226,15 +232,17 @@ export default function RoulettePage() {
     setSaveState('idle');
   };
 
+  const maxTextLen = itemCount <= 6 ? 7 : itemCount <= 10 ? 5 : 4;
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 font-sans text-stone-900 selection:bg-rose-200 selection:text-rose-950">
-      {/* Dynamic Background */}
+      {/* Background blobs */}
       <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-rose-300/30 to-pink-300/30 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -left-40 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-orange-200/40 to-amber-200/40 blur-3xl" />
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-fuchsia-200/20 to-purple-200/20 blur-3xl" />
-      <div className="absolute inset-0 bg-white/40 backdrop-blur-[50px] pointer-events-none" />
+      <div className="pointer-events-none absolute inset-0 bg-white/40 backdrop-blur-[50px]" />
 
-      <header className="relative z-10 border-b border-white/40 bg-white/50 backdrop-blur-md shadow-sm">
+      <header className="relative z-10 border-b border-white/40 bg-white/50 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <a
             href="/"
@@ -265,51 +273,101 @@ export default function RoulettePage() {
             </p>
           </div>
 
-          <div className="relative grid aspect-square w-full max-w-[560px] place-items-center">
-            {/* The Pointer */}
-            <svg width="48" height="60" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute -top-6 left-1/2 z-20 -translate-x-1/2 drop-shadow-xl">
-              <path d="M20 50 L5 25 C0 15 5 0 20 0 C35 0 40 15 35 25 L20 50Z" fill="#f43f5e" />
-              <circle cx="20" cy="15" r="7" fill="white" />
+          {/* ========== SVG Wheel ========== */}
+          <div className="relative w-full max-w-[560px] aspect-square flex items-center justify-center">
+            {/* Pointer - fixed, does NOT rotate */}
+            <svg
+              width="40"
+              height="52"
+              viewBox="0 0 40 52"
+              fill="none"
+              className="absolute -top-4 left-1/2 z-30 -translate-x-1/2 drop-shadow-lg"
+            >
+              <path d="M20 52 L4 24 C-1 14 4 0 20 0 C36 0 41 14 36 24 Z" fill="#e11d48" />
+              <circle cx="20" cy="14" r="6" fill="white" />
             </svg>
 
+            {/* Spinning container */}
             <div
-              className="relative aspect-square w-[min(86vw,520px)] rounded-full border-[10px] border-white/80 bg-white shadow-[0_0_50px_rgba(251,113,133,0.15)] transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1.05)]"
-              style={{
-                backgroundImage: wheelGradient,
-                transform: `rotate(${rotation}deg)`,
-                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.1), 0 10px 40px -10px rgba(251,113,133,0.3)',
-              }}
+              className="w-full h-full transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1)]"
+              style={{ transform: `rotate(${rotation}deg)` }}
             >
-              <div className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_0_30px_rgba(0,0,0,0.15)]" />
-              <div className="pointer-events-none absolute inset-[8%] rounded-full border border-white/30 bg-white/5 shadow-[inset_0_0_20px_rgba(255,255,255,0.5)]" />
-              
-              {activeItems.map((item, index) => {
-                const angle = index * sliceAngle + sliceAngle / 2;
-                return (
-                  <div
-                    key={item.id}
-                    className="absolute top-0 left-1/2 flex h-full w-[44%] origin-left items-center justify-end pr-[10%] text-right text-base font-black text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.5)] md:text-lg"
-                    style={{ transform: `rotate(${angle}deg)` }}
-                  >
-                    <span className="max-w-[70%] truncate leading-none">{item.text}</span>
-                  </div>
-                );
-              })}
+              <svg
+                viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
+                className="w-full h-full drop-shadow-2xl"
+              >
+                <defs>
+                  <filter id="wheelShadow">
+                    <feDropShadow dx="0" dy="4" stdDeviation="8" floodColor="#00000020" />
+                  </filter>
+                </defs>
+                {/* Outer ring */}
+                <circle cx={CX} cy={CY} r={WHEEL_R + 12} fill="white" filter="url(#wheelShadow)" />
+                <circle cx={CX} cy={CY} r={WHEEL_R + 4} fill="white" />
+
+                {/* Pie slices */}
+                {activeItems.map((item, index) => {
+                  const start = index * sliceAngle;
+                  const end = (index + 1) * sliceAngle;
+                  const mid = start + sliceAngle / 2;
+                  const textR = WHEEL_R * 0.62;
+                  const tp = polarToXY(mid, textR);
+                  const shouldFlip = mid > 90 && mid < 270;
+                  const textRotation = shouldFlip ? mid + 180 : mid;
+
+                  return (
+                    <g key={item.id}>
+                      <path
+                        d={slicePath(start, end, WHEEL_R)}
+                        fill={WHEEL_COLORS[index % WHEEL_COLORS.length]}
+                        stroke="white"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={tp.x}
+                        y={tp.y}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        transform={`rotate(${textRotation}, ${tp.x}, ${tp.y})`}
+                        fill="white"
+                        fontSize={itemCount <= 8 ? 16 : 13}
+                        fontWeight="700"
+                        fontFamily="Inter, system-ui, sans-serif"
+                        style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}
+                      >
+                        {truncateText(item.text, maxTextLen)}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Center hub */}
+                <circle cx={CX} cy={CY} r={52} fill="white" />
+                <circle cx={CX} cy={CY} r={46} fill="url(#hubGradient)" />
+                <defs>
+                  <linearGradient id="hubGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#f43f5e" />
+                    <stop offset="100%" stopColor="#ec4899" />
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
 
+            {/* GO button - on top, does NOT rotate */}
             <button
               type="button"
               onClick={spin}
               disabled={isSpinning || itemCount === 0}
-              className="absolute left-1/2 top-1/2 z-10 grid h-24 w-24 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[6px] border-white bg-gradient-to-br from-rose-400 to-pink-500 text-lg font-black text-white shadow-2xl transition-all hover:scale-105 hover:from-rose-500 hover:to-pink-600 hover:shadow-rose-500/40 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:scale-100 md:h-28 md:w-28 md:text-xl"
+              className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid h-[86px] w-[86px] place-items-center rounded-full text-lg font-black tracking-wider text-white transition-all hover:scale-110 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:scale-100"
             >
-              <span className="drop-shadow-sm tracking-widest">{isSpinning ? '...' : 'GO!'}</span>
+              <span className="drop-shadow-md">{isSpinning ? '...' : 'GO!'}</span>
             </button>
           </div>
 
+          {/* Result card */}
           <div className="grid w-full max-w-[560px] gap-3 rounded-3xl border border-white/60 bg-white/60 p-6 text-center shadow-xl backdrop-blur-xl transition-all hover:bg-white/80">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-stone-400">Result</p>
-            <p className="min-h-12 text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-pink-600 drop-shadow-sm md:text-4xl py-1">
+            <p className="min-h-12 py-1 text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-pink-600 drop-shadow-sm md:text-4xl">
               {lastPicked ? lastPicked : '还没转呢~'}
             </p>
             <div className="mt-3">
