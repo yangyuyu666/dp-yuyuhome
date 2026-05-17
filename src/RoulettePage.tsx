@@ -152,7 +152,7 @@ export default function RoulettePage() {
       .map((_, index) => {
         const start = index * sliceAngle;
         const end = (index + 1) * sliceAngle;
-        return `${WHEEL_COLORS[index % WHEEL_COLORS.length]} ${start}deg ${end}deg`;
+        return `${WHEEL_COLORS[index % WHEEL_COLORS.length]} ${start}deg ${end - 0.5}deg, transparent ${end - 0.5}deg ${end}deg`;
       })
       .join(', ')})`;
   }, [activeItems, itemCount, sliceAngle]);
@@ -267,15 +267,15 @@ export default function RoulettePage() {
 
           <div className="relative grid aspect-square w-full max-w-[560px] place-items-center">
             {/* The Pointer */}
-            <div className="absolute -top-4 left-1/2 z-20 flex h-16 w-10 -translate-x-1/2 flex-col items-center drop-shadow-xl">
-              <div className="h-5 w-5 rounded-full border-4 border-white bg-rose-500 shadow-sm z-10" />
-              <div className="-mt-1 h-10 w-0 border-x-[14px] border-t-[36px] border-x-transparent border-t-rose-500" />
-            </div>
+            <svg width="48" height="60" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg" className="absolute -top-6 left-1/2 z-20 -translate-x-1/2 drop-shadow-xl">
+              <path d="M20 50 L5 25 C0 15 5 0 20 0 C35 0 40 15 35 25 L20 50Z" fill="#f43f5e" />
+              <circle cx="20" cy="15" r="7" fill="white" />
+            </svg>
 
             <div
-              className="relative aspect-square w-[min(86vw,520px)] rounded-full border-[10px] border-white/80 shadow-[0_0_50px_rgba(251,113,133,0.15)] transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1.05)]"
+              className="relative aspect-square w-[min(86vw,520px)] rounded-full border-[10px] border-white/80 bg-white shadow-[0_0_50px_rgba(251,113,133,0.15)] transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1.05)]"
               style={{
-                background: wheelGradient,
+                backgroundImage: wheelGradient,
                 transform: `rotate(${rotation}deg)`,
                 boxShadow: 'inset 0 0 20px rgba(0,0,0,0.1), 0 10px 40px -10px rgba(251,113,133,0.3)',
               }}
@@ -288,10 +288,10 @@ export default function RoulettePage() {
                 return (
                   <div
                     key={item.id}
-                    className="absolute left-1/2 top-1/2 flex h-12 w-[48%] origin-left items-center justify-end pr-[12%] text-right text-base font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:text-lg"
+                    className="absolute top-0 left-1/2 flex h-full w-[44%] origin-left items-center justify-end pr-[10%] text-right text-base font-black text-white drop-shadow-[0_2px_5px_rgba(0,0,0,0.5)] md:text-lg"
                     style={{ transform: `rotate(${angle}deg)` }}
                   >
-                    <span className="max-w-[70%] truncate">{item.text}</span>
+                    <span className="max-w-[70%] truncate leading-none">{item.text}</span>
                   </div>
                 );
               })}
