@@ -22,6 +22,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Terminal,
   Trash2,
   UploadCloud,
@@ -817,6 +818,13 @@ export default function ToolsPage() {
               </button>
             );
           })}
+          <a
+            href="/roulette"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900"
+          >
+            <Sparkles className="h-4 w-4 text-slate-400" />
+            转盘
+          </a>
         </div>
         <div className="border-t border-slate-100 p-4">
           <a
