@@ -148,7 +148,7 @@ export default function RoulettePage() {
       return '#f8fafc';
     }
 
-    return `conic-gradient(${activeItems
+    return `conic-gradient(from 90deg, ${activeItems
       .map((_, index) => {
         const start = index * sliceAngle;
         const end = (index + 1) * sliceAngle;
@@ -288,23 +288,23 @@ export default function RoulettePage() {
                 return (
                   <div
                     key={item.id}
-                    className="absolute left-1/2 top-1/2 flex h-8 w-[42%] origin-left items-center justify-end pr-10 text-right text-sm font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:text-base"
+                    className="absolute left-1/2 top-1/2 flex h-12 w-[48%] origin-left items-center justify-end pr-[12%] text-right text-base font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:text-lg"
                     style={{ transform: `rotate(${angle}deg)` }}
                   >
-                    <span className="max-w-[120px] truncate">{item.text}</span>
+                    <span className="max-w-[70%] truncate">{item.text}</span>
                   </div>
                 );
               })}
-              
-              <button
-                type="button"
-                onClick={spin}
-                disabled={isSpinning || itemCount === 0}
-                className="absolute left-1/2 top-1/2 grid h-28 w-28 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[6px] border-white/90 bg-gradient-to-br from-rose-400 to-pink-500 text-base font-bold text-white shadow-2xl transition-all hover:scale-105 hover:from-rose-500 hover:to-pink-600 hover:shadow-rose-500/40 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:scale-100"
-              >
-                <span className="drop-shadow-sm tracking-widest">{isSpinning ? '...' : 'GO!'}</span>
-              </button>
             </div>
+
+            <button
+              type="button"
+              onClick={spin}
+              disabled={isSpinning || itemCount === 0}
+              className="absolute left-1/2 top-1/2 z-10 grid h-24 w-24 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[6px] border-white bg-gradient-to-br from-rose-400 to-pink-500 text-lg font-black text-white shadow-2xl transition-all hover:scale-105 hover:from-rose-500 hover:to-pink-600 hover:shadow-rose-500/40 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:scale-100 md:h-28 md:w-28 md:text-xl"
+            >
+              <span className="drop-shadow-sm tracking-widest">{isSpinning ? '...' : 'GO!'}</span>
+            </button>
           </div>
 
           <div className="grid w-full max-w-[560px] gap-3 rounded-3xl border border-white/60 bg-white/60 p-6 text-center shadow-xl backdrop-blur-xl transition-all hover:bg-white/80">
