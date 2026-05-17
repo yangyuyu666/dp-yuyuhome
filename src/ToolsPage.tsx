@@ -512,6 +512,8 @@ async function writeZipArchive(
 export default function ToolsPage() {
   const [activeTab, setActiveTab] = useState<(typeof SIDEBAR_ITEMS)[number]['id']>('2fa');
 
+  useEffect(() => { document.title = 'D&Y 工具箱'; }, []);
+
   const [draftSecret, setDraftSecret] = useState('');
   const [activeSecret, setActiveSecret] = useState('');
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
