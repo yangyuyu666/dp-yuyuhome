@@ -71,6 +71,12 @@ npm.cmd run deploy
 
 Use `npm.cmd` on this Windows machine instead of `npm` because PowerShell script execution policy may block `npm.ps1`.
 
+## Deployment Notes
+
+- Cloudflare is connected to the GitHub repository and deploys automatically after changes are pushed to GitHub.
+- For normal releases, commit and push the intended changes to GitHub; do not run `npm.cmd run deploy` unless the user explicitly asks for a manual Cloudflare deploy or automatic deployment is known to be unavailable.
+- `npm.cmd run deploy` is kept as a manual fallback command.
+
 ## Development Notes
 
 - Prefer keeping UI changes in `src/ToolsPage.tsx` scoped to the relevant tool.

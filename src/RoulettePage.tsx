@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import confetti from 'canvas-confetti';
 import {
   ArrowLeft,
   Cookie,
@@ -33,14 +34,16 @@ const DEFAULT_ITEMS: RouletteItem[] = [
 ];
 
 const WHEEL_COLORS = [
-  '#fb7185',
-  '#f59e0b',
-  '#10b981',
-  '#38bdf8',
-  '#8b5cf6',
-  '#f472b6',
-  '#84cc16',
-  '#f97316',
+  '#ff8fa3',
+  '#ffb3c6',
+  '#fb6f92',
+  '#f8961e',
+  '#f9c74f',
+  '#90be6d',
+  '#43aa8b',
+  '#4d908e',
+  '#577590',
+  '#277da1',
 ];
 
 function makeId() {
@@ -193,7 +196,7 @@ export default function RoulettePage() {
     const selectedIndex = Math.floor(Math.random() * itemCount);
     const targetCenter = selectedIndex * sliceAngle + sliceAngle / 2;
     const pointerAngle = 270;
-    const extraTurns = 5 + Math.floor(Math.random() * 3);
+    const extraTurns = 6 + Math.floor(Math.random() * 4);
     const nextRotation = rotation + extraTurns * 360 + pointerAngle - targetCenter;
     const picked = activeItems[selectedIndex].text;
 
@@ -204,7 +207,14 @@ export default function RoulettePage() {
       setIsSpinning(false);
       setLastPicked(picked);
       saveToCookie(picked);
-    }, 3800);
+      
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#ff8fa3', '#f8961e', '#f9c74f', '#90be6d', '#43aa8b'],
+      });
+    }, 4500);
   };
 
   const resetAll = () => {
@@ -217,9 +227,15 @@ export default function RoulettePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fffaf7] font-sans text-stone-900 selection:bg-rose-200 selection:text-rose-950">
-      <header className="border-b border-rose-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 font-sans text-stone-900 selection:bg-rose-200 selection:text-rose-950">
+      {/* Dynamic Background */}
+      <div className="pointer-events-none absolute -top-40 -right-40 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-rose-300/30 to-pink-300/30 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -left-40 h-[600px] w-[600px] rounded-full bg-gradient-to-br from-orange-200/40 to-amber-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 h-[800px] w-[800px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-fuchsia-200/20 to-purple-200/20 blur-3xl" />
+      <div className="absolute inset-0 bg-white/40 backdrop-blur-[50px] pointer-events-none" />
+
+      <header className="relative z-10 border-b border-white/40 bg-white/50 backdrop-blur-md shadow-sm">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <a
             href="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-stone-600 transition hover:text-rose-600"
@@ -227,81 +243,92 @@ export default function RoulettePage() {
             <ArrowLeft className="h-4 w-4" />
             回到小屋
           </a>
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-200/60 bg-amber-50/80 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-sm backdrop-blur-sm">
             <Cookie className="h-3.5 w-3.5" />
             本地 cookie 长期保存
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:py-12">
-        <section className="flex flex-col items-center gap-7">
+      <main className="relative z-10 mx-auto grid max-w-6xl gap-10 px-6 py-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:py-12">
+        <section className="flex flex-col items-center gap-8">
           <div className="w-full text-center">
-            <div className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-4 py-1.5 text-sm font-semibold text-rose-700">
-              <Sparkles className="h-4 w-4" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-rose-200/50 bg-rose-100/50 px-4 py-1.5 text-sm font-semibold text-rose-700 shadow-sm backdrop-blur-md">
+              <Sparkles className="h-4 w-4 text-rose-500" />
               转盘决定一下
             </div>
-            <h1 className="mt-5 text-4xl font-bold tracking-tight text-stone-950 md:text-5xl">
+            <h1 className="mt-6 text-4xl font-extrabold tracking-tight text-stone-900 drop-shadow-sm md:text-5xl">
               {title || DEFAULT_TITLE}
             </h1>
-            <p className="mt-3 text-sm leading-6 text-stone-500">
+            <p className="mt-4 text-sm leading-6 text-stone-500">
               手动填入选项，保存后会留在这个浏览器当前域名的 cookie 里。
             </p>
           </div>
 
           <div className="relative grid aspect-square w-full max-w-[560px] place-items-center">
-            <div className="absolute -top-1 left-1/2 z-20 h-0 w-0 -translate-x-1/2 border-x-[16px] border-t-[30px] border-x-transparent border-t-stone-950 drop-shadow" />
+            {/* The Pointer */}
+            <div className="absolute -top-4 left-1/2 z-20 flex h-16 w-10 -translate-x-1/2 flex-col items-center drop-shadow-xl">
+              <div className="h-5 w-5 rounded-full border-4 border-white bg-rose-500 shadow-sm z-10" />
+              <div className="-mt-1 h-10 w-0 border-x-[14px] border-t-[36px] border-x-transparent border-t-rose-500" />
+            </div>
+
             <div
-              className="relative aspect-square w-[min(86vw,520px)] rounded-full border-[14px] border-white shadow-2xl shadow-rose-200/50 transition-transform duration-[3800ms] ease-out"
+              className="relative aspect-square w-[min(86vw,520px)] rounded-full border-[10px] border-white/80 shadow-[0_0_50px_rgba(251,113,133,0.15)] transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1.05)]"
               style={{
                 background: wheelGradient,
                 transform: `rotate(${rotation}deg)`,
+                boxShadow: 'inset 0 0 20px rgba(0,0,0,0.1), 0 10px 40px -10px rgba(251,113,133,0.3)',
               }}
             >
-              <div className="absolute inset-[9%] rounded-full border border-white/60" />
+              <div className="pointer-events-none absolute inset-0 rounded-full shadow-[inset_0_0_30px_rgba(0,0,0,0.15)]" />
+              <div className="pointer-events-none absolute inset-[8%] rounded-full border border-white/30 bg-white/5 shadow-[inset_0_0_20px_rgba(255,255,255,0.5)]" />
+              
               {activeItems.map((item, index) => {
                 const angle = index * sliceAngle + sliceAngle / 2;
                 return (
                   <div
                     key={item.id}
-                    className="absolute left-1/2 top-1/2 flex h-8 w-[42%] origin-left items-center justify-end pr-8 text-right text-xs font-bold text-white drop-shadow md:text-sm"
+                    className="absolute left-1/2 top-1/2 flex h-8 w-[42%] origin-left items-center justify-end pr-10 text-right text-sm font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)] md:text-base"
                     style={{ transform: `rotate(${angle}deg)` }}
                   >
-                    <span className="max-w-[110px] truncate">{item.text}</span>
+                    <span className="max-w-[120px] truncate">{item.text}</span>
                   </div>
                 );
               })}
+              
               <button
                 type="button"
                 onClick={spin}
                 disabled={isSpinning || itemCount === 0}
-                className="absolute left-1/2 top-1/2 grid h-28 w-28 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-8 border-white bg-stone-950 text-sm font-bold text-white shadow-xl transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-70"
+                className="absolute left-1/2 top-1/2 grid h-28 w-28 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[6px] border-white/90 bg-gradient-to-br from-rose-400 to-pink-500 text-base font-bold text-white shadow-2xl transition-all hover:scale-105 hover:from-rose-500 hover:to-pink-600 hover:shadow-rose-500/40 disabled:cursor-not-allowed disabled:opacity-80 disabled:hover:scale-100"
               >
-                {isSpinning ? '转动中' : '开始'}
+                <span className="drop-shadow-sm tracking-widest">{isSpinning ? '...' : 'GO!'}</span>
               </button>
             </div>
           </div>
 
-          <div className="grid w-full max-w-2xl gap-3 rounded-2xl border border-rose-100 bg-white p-5 text-center shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">Result</p>
-            <p className="min-h-10 text-2xl font-bold text-rose-600 md:text-3xl">
-              {lastPicked ? lastPicked : '还没有结果'}
+          <div className="grid w-full max-w-[560px] gap-3 rounded-3xl border border-white/60 bg-white/60 p-6 text-center shadow-xl backdrop-blur-xl transition-all hover:bg-white/80">
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-stone-400">Result</p>
+            <p className="min-h-12 text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-pink-600 drop-shadow-sm md:text-4xl py-1">
+              {lastPicked ? lastPicked : '还没转呢~'}
             </p>
-            <button
-              type="button"
-              onClick={spin}
-              disabled={isSpinning || itemCount === 0}
-              className="mx-auto inline-flex items-center justify-center gap-2 rounded-full bg-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-rose-600/20 transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <RotateCw className={`h-4 w-4 ${isSpinning ? 'animate-spin' : ''}`} />
-              再转一次
-            </button>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={spin}
+                disabled={isSpinning || itemCount === 0}
+                className="mx-auto inline-flex items-center justify-center gap-2 rounded-full bg-stone-900 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-stone-900/20 transition-all hover:scale-105 hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+              >
+                <RotateCw className={`h-4 w-4 ${isSpinning ? 'animate-spin' : ''}`} />
+                再转一次
+              </button>
+            </div>
           </div>
         </section>
 
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-            <label htmlFor="roulette-title" className="block text-sm font-semibold text-stone-700">
+        <aside className="space-y-6">
+          <section className="rounded-3xl border border-white/60 bg-white/60 p-6 shadow-xl backdrop-blur-xl transition-all hover:bg-white/80">
+            <label htmlFor="roulette-title" className="block text-sm font-bold text-stone-800">
               转盘标题
             </label>
             <input
@@ -311,11 +338,11 @@ export default function RoulettePage() {
                 setTitle(event.target.value);
                 setSaveState('idle');
               }}
-              className="mt-2 w-full rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm outline-none transition focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/10"
+              className="mt-2.5 w-full rounded-2xl border border-white/80 bg-white/50 px-4 py-3.5 text-sm font-medium text-stone-800 shadow-sm outline-none transition focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/10"
             />
 
-            <form onSubmit={handleAddItem} className="mt-5">
-              <label htmlFor="roulette-new-item" className="block text-sm font-semibold text-stone-700">
+            <form onSubmit={handleAddItem} className="mt-6">
+              <label htmlFor="roulette-new-item" className="block text-sm font-bold text-stone-800">
                 添加选项
               </label>
               <textarea
@@ -324,62 +351,64 @@ export default function RoulettePage() {
                 onChange={(event) => setNewItem(event.target.value)}
                 rows={4}
                 placeholder="每行一个选项"
-                className="mt-2 w-full resize-none rounded-xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm leading-6 outline-none transition focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/10"
+                className="mt-2.5 w-full resize-none rounded-2xl border border-white/80 bg-white/50 px-4 py-3.5 text-sm font-medium leading-6 text-stone-800 shadow-sm outline-none transition focus:border-rose-400 focus:bg-white focus:ring-4 focus:ring-rose-500/10"
               />
               <button
                 type="submit"
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-900 px-4 py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-stone-800"
               >
                 <Plus className="h-4 w-4" />
                 加入转盘
               </button>
             </form>
 
-            <div className="mt-5 flex gap-3">
+            <div className="mt-6 flex gap-3">
               <button
                 type="button"
                 onClick={() => saveToCookie()}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-rose-500 to-pink-500 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-rose-500/20 transition hover:from-rose-600 hover:to-pink-600"
               >
                 <Save className="h-4 w-4" />
-                保存
+                保存配置
               </button>
               <button
                 type="button"
                 onClick={resetAll}
-                className="inline-flex items-center justify-center rounded-xl border border-stone-200 px-4 py-3 text-sm font-semibold text-stone-600 transition hover:bg-stone-50"
+                className="inline-flex items-center justify-center rounded-2xl border border-stone-200/80 bg-white/50 px-5 py-3.5 text-sm font-bold text-stone-600 shadow-sm transition hover:bg-white hover:text-stone-900"
               >
                 重置
               </button>
             </div>
 
             {saveState === 'saved' && (
-              <p className="mt-3 text-sm font-medium text-emerald-700">已保存到本地 cookie。</p>
+               <div className="mt-4 rounded-xl bg-emerald-50/80 p-3 text-center text-sm font-medium text-emerald-700 border border-emerald-100">
+                已安全保存到本地 cookie ✨
+              </div>
             )}
             {saveState === 'too-large' && (
-              <p className="mt-3 text-sm font-medium text-red-600">
-                当前内容超过 cookie 容量，请减少选项或缩短文字后再保存。
-              </p>
+              <div className="mt-4 rounded-xl bg-red-50/80 p-3 text-center text-sm font-medium text-red-600 border border-red-100">
+                内容超过限制，请减少选项或缩短文字后再保存。
+              </div>
             )}
           </section>
 
-          <section className="rounded-2xl border border-stone-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between gap-3 border-b border-stone-100 px-5 py-4">
+          <section className="flex flex-col h-[500px] rounded-3xl border border-white/60 bg-white/60 shadow-xl backdrop-blur-xl transition-all hover:bg-white/80">
+            <div className="flex items-center justify-between gap-3 border-b border-stone-200/50 px-6 py-5">
               <div>
                 <h2 className="text-base font-bold text-stone-900">选项列表</h2>
-                <p className="mt-1 text-xs text-stone-500">{itemCount}/40 个选项</p>
+                <p className="mt-1 text-xs font-medium text-stone-500">{itemCount}/40 个选项</p>
               </div>
             </div>
 
-            <div className="max-h-[420px] overflow-y-auto p-3">
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               {activeItems.length > 0 ? (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {activeItems.map((item, index) => (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[2rem_minmax(0,1fr)_2.25rem] items-center gap-3 rounded-xl border border-stone-100 bg-stone-50 px-3 py-2"
+                      className="group grid grid-cols-[2rem_minmax(0,1fr)_2.25rem] items-center gap-3 rounded-2xl border border-white/80 bg-white/50 px-3 py-2.5 shadow-sm transition-all hover:bg-white"
                     >
-                      <span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-white" style={{ backgroundColor: WHEEL_COLORS[index % WHEEL_COLORS.length] }}>
+                      <span className="grid h-8 w-8 place-items-center rounded-xl text-xs font-extrabold text-white shadow-sm" style={{ backgroundColor: WHEEL_COLORS[index % WHEEL_COLORS.length] }}>
                         {index + 1}
                       </span>
                       <input
@@ -393,7 +422,7 @@ export default function RoulettePage() {
                           );
                           setSaveState('idle');
                         }}
-                        className="min-w-0 rounded-lg border border-transparent bg-transparent px-2 py-2 text-sm font-medium text-stone-700 outline-none transition focus:border-rose-300 focus:bg-white"
+                        className="min-w-0 rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-sm font-bold text-stone-700 outline-none transition focus:bg-stone-50"
                       />
                       <button
                         type="button"
@@ -402,7 +431,7 @@ export default function RoulettePage() {
                           setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
                           setSaveState('idle');
                         }}
-                        className="grid h-9 w-9 place-items-center rounded-lg text-stone-400 transition hover:bg-white hover:text-red-500"
+                        className="grid h-9 w-9 place-items-center rounded-xl text-stone-400 opacity-50 transition-all hover:bg-red-50 hover:text-red-500 hover:opacity-100 group-hover:opacity-100"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -410,8 +439,11 @@ export default function RoulettePage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-stone-200 px-4 py-10 text-center text-sm text-stone-500">
-                  至少添加一个选项后才能转动。
+                <div className="flex h-full flex-col items-center justify-center rounded-2xl border-2 border-dashed border-stone-200/80 px-6 py-10 text-center text-sm font-medium text-stone-500 bg-white/30">
+                  <div className="mb-2 rounded-full bg-stone-100 p-3">
+                    <Sparkles className="h-5 w-5 text-stone-400" />
+                  </div>
+                  至少添加一个选项后才能转动
                 </div>
               )}
             </div>

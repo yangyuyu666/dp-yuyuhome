@@ -24,10 +24,13 @@ This project is configured as a Cloudflare Workers + Vite application. The React
 
 ## Deploy
 
-1. Adjust the Worker name in `wrangler.jsonc` if you want a different deployed service name.
-2. Log in to Cloudflare:
+Cloudflare is connected to the GitHub repository and deploys automatically after changes are pushed to GitHub.
+
+For normal releases, commit the code and push to the tracked GitHub branch. Use a manual Wrangler deploy only as a fallback or when explicitly needed:
+
+1. Log in to Cloudflare:
    `npx wrangler login`
-3. Deploy:
+2. Deploy:
    `npm run deploy`
 
 ## Project structure
