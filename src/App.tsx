@@ -88,6 +88,9 @@ export default function App() {
             <a href="#messages" className="hover:text-rose-500 transition-colors">
               留言
             </a>
+            <a href="/roulette" className="hover:text-rose-500 transition-colors">
+              转盘
+            </a>
           </div>
         </div>
       </nav>
