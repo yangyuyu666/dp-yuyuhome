@@ -7,10 +7,10 @@ import './index.css';
 
 const { pathname, hostname } = window.location;
 const isToolsHost = hostname === 'tools.dploveyuyu.site';
-const Page = isToolsHost || pathname === '/tools'
-  ? ToolsPage
-  : pathname === '/roulette'
-    ? RoulettePage
+const Page = pathname === '/roulette'
+  ? RoulettePage
+  : isToolsHost || pathname === '/tools'
+    ? ToolsPage
     : App;
 
 createRoot(document.getElementById('root')!).render(
