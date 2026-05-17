@@ -101,3 +101,51 @@ export function createConfig(title?: string): RouletteConfig {
     createdAt: Date.now(),
   };
 }
+
+/* ───── import / export ───── */
+
+export type ExportPayload = {
+  version: 1;
+  exportedAt: string;
+  configs: RouletteConfig[];
+};
+
+export function exportConfigs(configs: RouletteConfig[]): string {
+  const payload: ExportPayload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    configs: configs.map((c) => ({
+      ...c,
+      items: normalizeItems(c.items),
+    })),
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+export function downloadJson(json: string, filename: string) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function parseImportFile(json: string): RouletteConfig[] {
+  const data = JSON.parse(json) as Partial<ExportPayload>;
+  if (!data || !Array.isArray(data.configs)) {
+    throw new Error('无效的转盘文件格式');
+  }
+  return data.configs
+    .filter((c): c is RouletteConfig => !!c && typeof c.title === 'string' && Array.isArray(c.items))
+    .map((c) => ({
+      id: makeId(),
+      title: c.title.trim() || '导入的转盘',
+      items: normalizeItems(c.items),
+      lastPicked: typeof c.lastPicked === 'string' ? c.lastPicked : undefined,
+      createdAt: Date.now(),
+    }));
+}

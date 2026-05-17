@@ -2,13 +2,17 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import confetti from 'canvas-confetti';
 import {
   ArrowLeft,
+  Check,
   ChevronLeft,
+  Download,
   List,
   Plus,
   RotateCw,
   Save,
   Sparkles,
   Trash2,
+  Upload,
+  X,
 } from 'lucide-react';
 import {
   type RouletteConfig,
@@ -17,9 +21,12 @@ import {
   DEFAULT_ITEMS,
   DEFAULT_TITLE,
   createConfig,
+  downloadJson,
+  exportConfigs,
   loadStore,
   makeId,
   normalizeItems,
+  parseImportFile,
   saveStore,
 } from './rouletteStore';
 
@@ -97,6 +104,12 @@ export default function RoulettePage() {
   const [saveState, setSaveState] = useState<'idle' | 'saved'>('idle');
   const spinTimer = useRef<number | null>(null);
   const activeIdRef = useRef('');
+
+  // import/export state
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [importMsg, setImportMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // load store on mount
   useEffect(() => {
@@ -189,6 +202,48 @@ export default function RoulettePage() {
     window.setTimeout(() => setSaveState('idle'), 1500);
   }
 
+  /* ───── import / export ───── */
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleExport() {
+    if (!store) return;
+    const toExport = selectMode && selected.size > 0
+      ? store.configs.filter((c) => selected.has(c.id))
+      : store.configs;
+    const json = exportConfigs(toExport);
+    const name = toExport.length === 1 ? `${toExport[0].title}.json` : `转盘导出_${toExport.length}个.json`;
+    downloadJson(json, name);
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  function handleImportFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const configs = parseImportFile(reader.result as string);
+        if (configs.length === 0) throw new Error('文件中没有有效的转盘数据');
+        if (!store) return;
+        const next: RouletteStore = { ...store, configs: [...store.configs, ...configs] };
+        setStore(next);
+        saveStore(next);
+        setImportMsg({ type: 'ok', text: `成功导入 ${configs.length} 个转盘` });
+        window.setTimeout(() => setImportMsg(null), 3000);
+      } catch (e) {
+        setImportMsg({ type: 'err', text: e instanceof Error ? e.message : '导入失败，请检查文件格式' });
+        window.setTimeout(() => setImportMsg(null), 4000);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   /* ───── wheel actions ───── */
 
   const handleAddItem = (e: FormEvent<HTMLFormElement>) => {
@@ -240,37 +295,78 @@ export default function RoulettePage() {
         </header>
 
         <main className="relative z-10 mx-auto max-w-4xl px-6 py-10">
-          <div className="mb-8 flex items-end justify-between">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="text-3xl font-extrabold tracking-tight text-stone-900">我的转盘</h1>
               <p className="mt-2 text-sm text-stone-500">共 {store.configs.length} 个转盘，数据保存在本地浏览器中</p>
             </div>
-            <button
-              type="button"
-              onClick={handleCreate}
-              className="inline-flex items-center gap-2 rounded-2xl bg-stone-900 px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-stone-800"
-            >
-              <Plus className="h-4 w-4" /> 新建转盘
-            </button>
+            <div className="flex flex-wrap gap-2">
+              {selectMode ? (
+                <>
+                  <button type="button" onClick={handleExport} disabled={selected.size === 0} className="inline-flex items-center gap-2 rounded-2xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Download className="h-4 w-4" /> 导出选中 ({selected.size})
+                  </button>
+                  <button type="button" onClick={() => { setSelectMode(false); setSelected(new Set()); }} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200/80 bg-white/60 px-4 py-2.5 text-sm font-bold text-stone-600 transition hover:bg-white">
+                    <X className="h-4 w-4" /> 取消
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={handleCreate} className="inline-flex items-center gap-2 rounded-2xl bg-stone-900 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-stone-800">
+                    <Plus className="h-4 w-4" /> 新建
+                  </button>
+                  <button type="button" onClick={() => { if (store) { downloadJson(exportConfigs(store.configs), `转盘导出_全部${store.configs.length}个.json`); } }} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200/80 bg-white/60 px-4 py-2.5 text-sm font-bold text-stone-600 shadow-sm transition hover:bg-white">
+                    <Download className="h-4 w-4" /> 导出全部
+                  </button>
+                  <button type="button" onClick={() => setSelectMode(true)} className="inline-flex items-center gap-2 rounded-2xl border border-stone-200/80 bg-white/60 px-4 py-2.5 text-sm font-bold text-stone-600 shadow-sm transition hover:bg-white">
+                    <Check className="h-4 w-4" /> 选择导出
+                  </button>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-stone-200/80 bg-white/60 px-4 py-2.5 text-sm font-bold text-stone-600 shadow-sm transition hover:bg-white">
+                    <Upload className="h-4 w-4" /> 导入
+                    <input ref={fileInputRef} type="file" accept=".json" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportFile(f); e.currentTarget.value = ''; }} />
+                  </label>
+                </>
+              )}
+            </div>
           </div>
+
+          {importMsg && (
+            <div className={`mb-6 rounded-2xl border p-4 text-center text-sm font-medium ${importMsg.type === 'ok' ? 'border-emerald-100 bg-emerald-50/80 text-emerald-700' : 'border-red-100 bg-red-50/80 text-red-600'}`}>
+              {importMsg.text}
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {store.configs.map((cfg) => {
               const count = normalizeItems(cfg.items).length;
+              const isSelected = selected.has(cfg.id);
               return (
                 <div
                   key={cfg.id}
-                  onClick={() => openConfig(store, cfg.id)}
-                  className="group relative cursor-pointer rounded-3xl border border-white/60 bg-white/60 p-5 shadow-lg backdrop-blur-xl transition-all hover:bg-white/90 hover:shadow-xl hover:-translate-y-1"
+                  onClick={() => selectMode ? toggleSelect(cfg.id) : openConfig(store, cfg.id)}
+                  className={`group relative cursor-pointer rounded-3xl border p-5 shadow-lg backdrop-blur-xl transition-all hover:shadow-xl hover:-translate-y-1 ${
+                    selectMode && isSelected
+                      ? 'border-rose-400 bg-rose-50/60 ring-2 ring-rose-200'
+                      : 'border-white/60 bg-white/60 hover:bg-white/90'
+                  }`}
                 >
-                  <button
-                    type="button"
-                    aria-label="删除转盘"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(cfg.id); }}
-                    className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-xl text-stone-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {selectMode && (
+                    <div className={`absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-lg border-2 transition ${
+                      isSelected ? 'border-rose-500 bg-rose-500 text-white' : 'border-stone-300 bg-white text-transparent'
+                    }`}>
+                      <Check className="h-4 w-4" />
+                    </div>
+                  )}
+                  {!selectMode && (
+                    <button
+                      type="button"
+                      aria-label="删除转盘"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(cfg.id); }}
+                      className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-xl text-stone-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-4">
                     <MiniWheel items={cfg.items} />
