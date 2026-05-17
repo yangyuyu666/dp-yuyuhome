@@ -111,7 +111,7 @@ export default function RoulettePage() {
   const [importMsg, setImportMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { document.title = '转盘 · 戴鹏和杨雯寓的小屋'; }, []);
+  useEffect(() => { document.title = '转盘'; }, []);
 
   // load store on mount
   useEffect(() => {
