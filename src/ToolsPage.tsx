@@ -814,15 +814,15 @@ export default function ToolsPage() {
   const readyData = requestState.status === 'ready' ? requestState.data : null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900 lg:flex-row">
-      <aside className="sticky top-0 z-20 flex w-full flex-col border-b border-slate-200 bg-white shadow-sm lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-64 lg:border-b-0 lg:border-r">
-        <div className="flex h-14 shrink-0 items-center border-b border-slate-100 px-4 lg:h-16 lg:px-6">
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900 md:flex-row">
+      <aside className="sticky top-0 z-20 flex w-full flex-col border-b border-slate-200 bg-white shadow-sm md:fixed md:left-0 md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
+        <div className="flex h-14 shrink-0 items-center border-b border-slate-100 px-4 md:h-16 md:px-6">
           <div className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-xl font-bold text-transparent">
             <LayoutGrid className="h-5 w-5 text-violet-600" />
             D&Y 工具箱
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto px-3 py-3 lg:flex-1 lg:flex-col lg:gap-0 lg:space-y-1 lg:overflow-y-auto lg:py-4">
+        <div className="flex gap-2 overflow-x-auto px-3 py-3 md:flex-1 md:flex-col md:gap-0 md:space-y-1 md:overflow-y-auto md:py-4">
           {SIDEBAR_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -830,7 +830,7 @@ export default function ToolsPage() {
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 lg:w-full lg:gap-3 ${
+                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 md:w-full md:gap-3 ${
                   isActive
                     ? 'bg-violet-50 text-violet-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -843,13 +843,13 @@ export default function ToolsPage() {
           })}
           <a
             href="/roulette"
-            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 lg:w-full lg:gap-3"
+            className="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-all duration-200 hover:bg-slate-100 hover:text-slate-900 md:w-full md:gap-3"
           >
             <Sparkles className="h-4 w-4 text-slate-400" />
             转盘
           </a>
         </div>
-        <div className="hidden border-t border-slate-100 p-4 lg:block">
+        <div className="hidden border-t border-slate-100 p-4 md:block">
           <a
             href="/"
             className="flex items-center gap-2 px-3 py-2 text-sm text-slate-500 transition-colors hover:text-slate-800"
@@ -860,14 +860,14 @@ export default function ToolsPage() {
         </div>
       </aside>
 
-      <main className="flex min-h-screen flex-1 flex-col bg-[#f8fafc] lg:ml-64">
-        <header className="z-10 flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between lg:sticky lg:top-0 lg:h-16 lg:px-8 lg:py-0">
+      <main className="flex min-h-screen flex-1 flex-col bg-[#f8fafc] md:ml-64">
+        <header className="z-10 flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between md:sticky md:top-0 md:h-16 md:px-8 md:py-0">
           <div className="flex gap-5 overflow-x-auto whitespace-nowrap text-sm font-medium text-slate-600 sm:gap-6">
-            <span className="cursor-pointer border-b-2 border-violet-600 py-2 text-slate-900 lg:py-5">
+            <span className="cursor-pointer border-b-2 border-violet-600 py-2 text-slate-900 md:py-5">
               常用工具
             </span>
-            <span className="cursor-pointer py-2 transition-colors hover:text-slate-900 lg:py-5">最新上架</span>
-            <span className="cursor-pointer py-2 transition-colors hover:text-slate-900 lg:py-5">我的收藏</span>
+            <span className="cursor-pointer py-2 transition-colors hover:text-slate-900 md:py-5">最新上架</span>
+            <span className="cursor-pointer py-2 transition-colors hover:text-slate-900 md:py-5">我的收藏</span>
           </div>
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -879,9 +879,9 @@ export default function ToolsPage() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
           {activeTab === '2fa' && (
-            <div className="mx-auto flex max-w-5xl flex-col gap-6 lg:gap-8">
+            <div className="mx-auto flex max-w-5xl flex-col gap-6 md:gap-8">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
@@ -897,7 +897,7 @@ export default function ToolsPage() {
                 </div>
               </div>
 
-              <section className="grid gap-6 lg:mt-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <section className="grid gap-6 md:mt-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
                   <form className="space-y-4" onSubmit={handleSubmit}>
                     <label
