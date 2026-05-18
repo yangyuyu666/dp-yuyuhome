@@ -58,6 +58,22 @@ function truncText(t: string, max: number) {
   return t.length > max ? t.slice(0, max) + '…' : t;
 }
 
+function normalizeDegrees(deg: number) {
+  return ((deg % 360) + 360) % 360;
+}
+
+function rotationDeltaToPointer(currentRotation: number, targetAngle: number) {
+  return normalizeDegrees(360 - normalizeDegrees(targetAngle) - normalizeDegrees(currentRotation));
+}
+
+function readableSliceTextRotation(sliceMidAngle: number, wheelRotation: number) {
+  const visualMidAngle = normalizeDegrees(sliceMidAngle + wheelRotation);
+  const readableScreenAngle =
+    visualMidAngle > 90 && visualMidAngle < 270 ? visualMidAngle + 180 : visualMidAngle;
+
+  return readableScreenAngle - wheelRotation;
+}
+
 /* ───── mini wheel for list cards ───── */
 
 function MiniWheel({ items }: { items: RouletteItem[] }) {
@@ -128,6 +144,7 @@ export default function RoulettePage() {
   const activeItems = useMemo(() => normalizeItems(items), [items]);
   const itemCount = activeItems.length;
   const sliceAngle = itemCount > 0 ? 360 / itemCount : 360;
+  const normalizedRotation = normalizeDegrees(rotation);
   const maxTextLen = itemCount <= 6 ? 7 : itemCount <= 10 ? 5 : 4;
 
   /* ───── storage helpers ───── */
@@ -263,7 +280,9 @@ export default function RoulettePage() {
     const target = idx * sliceAngle + sliceAngle / 2;
     const turns = 6 + Math.floor(Math.random() * 4);
     setIsSpinning(true);
-    setRotation((r) => r + turns * 360 + (360 - target));
+    setRotation((currentRotation) => (
+      currentRotation + turns * 360 + rotationDeltaToPointer(currentRotation, target)
+    ));
     const picked = activeItems[idx].text;
     spinTimer.current = window.setTimeout(() => {
       setIsSpinning(false);
@@ -431,9 +450,16 @@ export default function RoulettePage() {
 
           {/* SVG Wheel */}
           <div className="relative w-full max-w-[560px] aspect-square flex items-center justify-center">
-            <svg width="40" height="52" viewBox="0 0 40 52" fill="none" className="absolute -top-4 left-1/2 z-30 -translate-x-1/2 drop-shadow-lg">
-              <path d="M20 52 L4 24 C-1 14 4 0 20 0 C36 0 41 14 36 24 Z" fill="#e11d48" />
-              <circle cx="20" cy="14" r="6" fill="white" />
+            <svg
+              width="54"
+              height="54"
+              viewBox="0 0 54 54"
+              fill="none"
+              className="pointer-events-none absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-2 drop-shadow-lg"
+              aria-hidden="true"
+            >
+              <path d="M27 54 L9 20 C4 10 12 0 27 0 C42 0 50 10 45 20 Z" fill="#e11d48" />
+              <circle cx="27" cy="15" r="6.5" fill="white" />
             </svg>
             <div className="w-full h-full transition-transform duration-[4500ms] ease-[cubic-bezier(0.14,0.85,0.26,1)]" style={{ transform: `rotate(${rotation}deg)` }}>
               <svg viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} className="w-full h-full drop-shadow-2xl">
@@ -446,11 +472,11 @@ export default function RoulettePage() {
                 {activeItems.map((item, i) => {
                   const s = i * sliceAngle, e = (i + 1) * sliceAngle, mid = s + sliceAngle / 2;
                   const tp = polarToXY(mid, WHEEL_R * 0.62);
-                  const flip = mid > 90 && mid < 270;
+                  const textRotation = readableSliceTextRotation(mid, normalizedRotation);
                   return (
                     <g key={item.id}>
                       <path d={slicePath(s, e, WHEEL_R)} fill={WHEEL_COLORS[i % WHEEL_COLORS.length]} stroke="white" strokeWidth="2" />
-                      <text x={tp.x} y={tp.y} textAnchor="middle" dominantBaseline="central" transform={`rotate(${flip ? mid + 180 : mid}, ${tp.x}, ${tp.y})`} fill="white" fontSize={itemCount <= 8 ? 16 : 13} fontWeight="700" fontFamily="Inter, system-ui, sans-serif" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}>
+                      <text x={tp.x} y={tp.y} textAnchor="middle" dominantBaseline="central" transform={`rotate(${textRotation}, ${tp.x}, ${tp.y})`} fill="white" fontSize={itemCount <= 8 ? 16 : 13} fontWeight="700" fontFamily="Inter, system-ui, sans-serif" style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }}>
                         {truncText(item.text, maxTextLen)}
                       </text>
                     </g>
