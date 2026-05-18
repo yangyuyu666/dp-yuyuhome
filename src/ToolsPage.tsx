@@ -10,11 +10,14 @@ import {
   Archive as ArchiveIcon,
   ArrowLeft,
   CheckCircle2,
+  CreditCard,
   Download,
+  ExternalLink,
   FileArchive,
   FileJson,
   Files,
   FolderOpen,
+  Globe2,
   Image as ImageIcon,
   KeyRound,
   LayoutGrid,
@@ -139,9 +142,27 @@ const SIDEBAR_ITEMS = [
   { id: '2fa', name: '2FA 密钥计算器', icon: KeyRound },
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
   { id: 'compress', name: '压缩工具', icon: Files },
+  { id: 'sites', name: '推荐网站', icon: Globe2 },
   { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
+] as const;
+
+const RECOMMENDED_WEBSITES = [
+  {
+    name: '随机信用卡生成',
+    url: 'https://www.suijidaquan.com/credit-card-generator',
+    description: '生成随机信用卡号数据，适合测试表单和校验逻辑，不用于真实支付。',
+    category: '测试数据',
+    icon: CreditCard,
+  },
+  {
+    name: 'IP 纯净度查询',
+    url: 'https://ippure.com/',
+    description: '查询 IP 风险、归属与纯净度信息，适合检查代理、服务器或网络出口状态。',
+    category: '网络检测',
+    icon: ShieldCheck,
+  },
 ] as const;
 
 const SUPPORTED_FORMATS = [
@@ -1559,7 +1580,79 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && (
+          {activeTab === 'sites' && (
+            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold tracking-tight text-slate-900">推荐网站</h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    收纳常用外部网站，保持在工具箱内统一访问入口。
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700">
+                  <Globe2 className="h-4 w-4" />
+                  Web shortcuts
+                </div>
+              </div>
+
+              <section className="grid gap-4 md:grid-cols-2">
+                {RECOMMENDED_WEBSITES.map((site) => {
+                  const Icon = site.icon;
+
+                  return (
+                    <article
+                      key={site.url}
+                      className="flex min-h-56 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="grid h-11 w-11 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-violet-600">
+                                {site.category}
+                              </p>
+                              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                                {site.name}
+                              </h2>
+                            </div>
+                          </div>
+                          <a
+                            href={site.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`打开 ${site.name}`}
+                            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-700"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </div>
+
+                        <p className="mt-5 text-sm leading-6 text-slate-500">{site.description}</p>
+                      </div>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                        <span className="break-all text-xs text-slate-400">{site.url}</span>
+                        <a
+                          href={site.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          打开网站
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            </div>
+          )}
+
+          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
               <LayoutGrid className="h-12 w-12 opacity-20" />
               <p>该工具正在开发中，敬请期待...</p>

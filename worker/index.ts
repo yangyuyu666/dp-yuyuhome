@@ -57,8 +57,8 @@ function getPageMetadata(url: URL): PageMetadata {
 
   if (isToolsPage) {
     return {
-      title: '2FA 实时密钥计算器 | dploveyuyu.site',
-      description: '在 Cloudflare Worker 边缘服务器中实时计算 TOTP/2FA 验证码，浏览器只负责展示结果。',
+      title: 'D&Y 工具箱 | dploveyuyu.site',
+      description: 'D&Y 工具箱，包含 2FA 实时密钥计算器、浏览器端压缩解压工具和常用网站推荐。',
       canonical: 'https://tools.dploveyuyu.site/',
     };
   }
