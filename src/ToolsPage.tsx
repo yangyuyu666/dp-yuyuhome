@@ -591,10 +591,20 @@ export default function ToolsPage() {
   const [chatgptCopied, setChatgptCopied] = useState(false);
 
   const fetchCheckoutUrl = async () => {
-    const token = chatgptToken.trim();
-    if (!token) {
-      setCheckoutState({ status: 'error', message: '请输入 accessToken' });
+    const raw = chatgptToken.trim();
+    if (!raw) {
+      setCheckoutState({ status: 'error', message: '请粘贴 session 页面内容或 accessToken' });
       return;
+    }
+
+    let token = raw;
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.accessToken === 'string' && parsed.accessToken) {
+        token = parsed.accessToken;
+      }
+    } catch {
+      /* not JSON, treat as raw token */
     }
 
     setCheckoutState({ status: 'loading' });
@@ -1738,7 +1748,7 @@ export default function ToolsPage() {
                     ChatGPT Plus 入口
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                    粘贴你的 accessToken，一键获取 Stripe 支付长链接。Token 仅用于本次请求，不会被保存。
+                    直接粘贴 session 页面的全部内容，自动提取 token 并获取 Stripe 支付长链接。Token 仅用于本次请求，不会被保存。
                   </p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
@@ -1755,7 +1765,7 @@ export default function ToolsPage() {
                       className="block text-sm font-medium text-slate-700"
                       htmlFor="chatgpt-access-token"
                     >
-                      Access Token
+                      Session 数据 / Access Token
                     </label>
                     <textarea
                       id="chatgpt-access-token"
@@ -1766,7 +1776,7 @@ export default function ToolsPage() {
                           setCheckoutState({ status: 'idle' });
                         }
                       }}
-                      placeholder={'登录 chatgpt.com 后打开浏览器控制台，粘贴以下代码获取 token：\n\nfetch(\'https://chatgpt.com/api/auth/session\').then(r=>r.json()).then(d=>copy(d.accessToken))'}
+                      placeholder={'将 https://chatgpt.com/api/auth/session 页面的全部内容粘贴到这里\n\n支持粘贴完整 JSON 或单独的 accessToken'}
                       className="min-h-36 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 font-mono text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
                       spellCheck={false}
                     />
@@ -1803,14 +1813,21 @@ export default function ToolsPage() {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                       <div className="text-sm leading-6 text-amber-800">
-                        <p className="font-semibold">如何获取 accessToken？</p>
+                        <p className="font-semibold">如何获取？</p>
                         <ol className="mt-2 list-inside list-decimal space-y-1 text-amber-700">
                           <li>在浏览器中登录 <a href="https://chatgpt.com" target="_blank" rel="noreferrer" className="underline decoration-amber-400/50 hover:decoration-amber-500">chatgpt.com</a></li>
-                          <li>按 <kbd className="rounded border border-amber-300 bg-amber-100 px-1.5 py-0.5 font-mono text-xs">F12</kbd> 打开开发者工具</li>
-                          <li>切换到 Console 面板，粘贴以下代码并回车：</li>
+                          <li>在同一浏览器新标签页打开下面的链接：</li>
                         </ol>
-                        <pre className="mt-2 overflow-x-auto rounded-lg border border-amber-200 bg-white/70 p-3 font-mono text-xs leading-5 text-amber-900">{"fetch('https://chatgpt.com/api/auth/session')\n  .then(r => r.json())\n  .then(d => copy(d.accessToken))"}</pre>
-                        <p className="mt-2 text-xs text-amber-600">Token 会自动复制到剪贴板，然后粘贴到上方输入框即可。</p>
+                        <a
+                          href="https://chatgpt.com/api/auth/session"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white/70 px-3 py-2 font-mono text-xs text-amber-900 transition hover:bg-white"
+                        >
+                          https://chatgpt.com/api/auth/session
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                        <p className="mt-2 text-xs text-amber-600">打开后按 <kbd className="rounded border border-amber-300 bg-amber-100 px-1 py-0.5 font-mono text-xs">Ctrl+A</kbd> 全选，<kbd className="rounded border border-amber-300 bg-amber-100 px-1 py-0.5 font-mono text-xs">Ctrl+C</kbd> 复制，然后粘贴到上方输入框即可。工具会自动从 JSON 中提取 accessToken。</p>
                       </div>
                     </div>
                   </div>
