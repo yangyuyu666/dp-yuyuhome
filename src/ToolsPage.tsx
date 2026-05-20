@@ -143,6 +143,7 @@ const SIDEBAR_ITEMS = [
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
   { id: 'compress', name: '压缩工具', icon: Files },
   { id: 'sites', name: '推荐网站', icon: Globe2 },
+  { id: 'chatgpt-plus', name: 'ChatGPT Plus 入口', icon: CreditCard },
   { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
@@ -162,6 +163,24 @@ const RECOMMENDED_WEBSITES = [
     description: '查询 IP 风险、归属与纯净度信息，适合检查代理、服务器或网络出口状态。',
     category: '网络检测',
     icon: ShieldCheck,
+  },
+] as const;
+
+const CHATGPT_PLUS_LINKS = [
+  {
+    name: 'ChatGPT Plus 官方页面',
+    url: 'https://chatgpt.com/plans/plus',
+    description: '登录 ChatGPT 后从官方页面继续升级流程。',
+  },
+  {
+    name: 'OpenAI ChatGPT 价格页',
+    url: 'https://openai.com/chatgpt/pricing/',
+    description: '查看 Plus、Pro、Business 等官方套餐说明。',
+  },
+  {
+    name: 'Plus 帮助中心',
+    url: 'https://help.openai.com/en/articles/6950777-chatgpt-plus',
+    description: '查看 Plus 订阅、账单和升级说明。',
   },
 ] as const;
 
@@ -1652,7 +1671,71 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && (
+          {activeTab === 'chatgpt-plus' && (
+            <div className="mx-auto flex max-w-6xl flex-col gap-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                    ChatGPT Plus 入口
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    使用官方 ChatGPT 升级入口完成订阅，不在本站读取或保存登录凭据。
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                  <ShieldCheck className="h-4 w-4" />
+                  Official checkout
+                </div>
+              </div>
+
+              <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold text-slate-900">为什么不直接生成支付长链接</h2>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        ChatGPT 的 accessToken 是登录凭据，本站不能读取、收集或转发它；浏览器同源策略也不允许本站直接读取 chatgpt.com 的登录会话。请在 ChatGPT 官方页面内继续升级。
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href="https://chatgpt.com/plans/plus"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 sm:w-auto"
+                  >
+                    打开官方 Plus 页面
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </div>
+
+                <div className="space-y-3">
+                  {CHATGPT_PLUS_LINKS.map((link) => (
+                    <a
+                      key={link.url}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-violet-200 hover:shadow-md"
+                    >
+                      <div>
+                        <h3 className="text-sm font-semibold text-slate-900">{link.name}</h3>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">{link.description}</p>
+                        <p className="mt-2 break-all text-xs text-slate-400">{link.url}</p>
+                      </div>
+                      <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                    </a>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && activeTab !== 'chatgpt-plus' && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
               <LayoutGrid className="h-12 w-12 opacity-20" />
               <p>该工具正在开发中，敬请期待...</p>
