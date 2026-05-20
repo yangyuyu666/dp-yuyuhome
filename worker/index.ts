@@ -308,6 +308,61 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/tools/chatgpt-checkout' && request.method === 'POST') {
+      try {
+        const body = (await request.json()) as { accessToken?: string };
+        const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+
+        if (!accessToken) {
+          return json({ error: '请提供 accessToken' }, { status: 400 });
+        }
+
+        const checkoutResponse = await fetch(
+          'https://chatgpt.com/backend-api/payments/checkout',
+          {
+            method: 'POST',
+            headers: {
+              'authorization': `Bearer ${accessToken}`,
+              'content-type': 'application/json',
+              'user-agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'accept': '*/*',
+              'origin': 'https://chatgpt.com',
+              'referer': 'https://chatgpt.com/',
+            },
+          },
+        );
+
+        if (!checkoutResponse.ok) {
+          const errorText = await checkoutResponse.text().catch(() => '');
+          let errorMessage = `ChatGPT 返回 ${checkoutResponse.status}`;
+
+          try {
+            const errorJson = JSON.parse(errorText) as { detail?: string };
+            if (errorJson.detail) {
+              errorMessage = errorJson.detail;
+            }
+          } catch {
+            if (errorText) {
+              errorMessage = errorText.slice(0, 200);
+            }
+          }
+
+          return json({ error: errorMessage }, { status: checkoutResponse.status });
+        }
+
+        const data = (await checkoutResponse.json()) as Record<string, unknown>;
+        return json(data);
+      } catch (error) {
+        return json(
+          {
+            error: error instanceof Error ? error.message : '获取支付链接失败',
+          },
+          { status: 500 },
+        );
+      }
+    }
+
     const response = await env.ASSETS.fetch(request);
     const contentType = response.headers.get('content-type') ?? '';
 

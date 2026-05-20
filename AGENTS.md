@@ -60,6 +60,14 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 - The compression tool accepts multiple files, whole folders via `webkitdirectory`, and drag-and-drop files/folders.
 - Folder uploads rely on browser-specific file path APIs; Chrome and Edge are the practical target browsers.
 
+### ChatGPT Plus Checkout Link
+
+- The ChatGPT Plus tool lets users paste their ChatGPT `accessToken` to obtain a Stripe checkout URL for Plus subscription.
+- The frontend sends the token to `POST /api/tools/chatgpt-checkout` on the Worker.
+- The Worker proxies the request to `https://chatgpt.com/backend-api/payments/checkout` with the user's token and returns the response.
+- The token is not stored or logged; it is only used for the single proxied request.
+- The resulting Stripe URL is displayed in the UI with copy-to-clipboard and open-in-new-tab buttons.
+
 ## Common Commands
 
 ```powershell
