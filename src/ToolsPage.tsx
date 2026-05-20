@@ -145,7 +145,7 @@ const SIDEBAR_ITEMS = [
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
   { id: 'compress', name: '压缩工具', icon: Files },
   { id: 'sites', name: '推荐网站', icon: Globe2 },
-  { id: 'chatgpt-plus', name: 'ChatGPT Plus 入口', icon: CreditCard },
+  { id: 'chatgpt-plus', name: 'ChatGPT 提取长链接', icon: CreditCard },
   { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
@@ -1745,7 +1745,7 @@ export default function ToolsPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    ChatGPT Plus 入口
+                    ChatGPT 提取长链接
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                     直接粘贴 session 页面的全部内容，自动提取 token 并获取 Stripe 支付长链接。Token 仅用于本次请求，不会被保存。
