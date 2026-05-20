@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
+﻿import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react';
 import {
   Archive as LibArchive,
   ArchiveCompression,
@@ -185,7 +185,23 @@ const CHATGPT_PLUS_LINKS = [
   },
 ] as const;
 
-const CHATGPT_CHECKOUT_SCRIPT = `fetch('/api/auth/session').then(r=>r.json()).then(s=>fetch('/backend-api/payments/checkout',{method:'POST',headers:{'Authorization':'Bearer '+s.accessToken,'Content-Type':'application/json'},body:'{}'}).then(r=>r.json())).then(d=>{copy(d.url);prompt('\u2705 长链接已复制到剪贴板：',d.url)}).catch(e=>alert('\u274c 失败：'+e.message))`;
+const CHATGPT_CHECKOUT_SCRIPT = [
+  "fetch('/api/auth/session',{credentials:'include'})",
+  ".then(r=>r.json())",
+  ".then(s=>{",
+  "if(!s.accessToken)throw new Error('\u672a\u767b\u5f55 ChatGPT');",
+  "return fetch('/backend-api/payments/checkout',{",
+  "method:'POST',credentials:'include',",
+  "headers:{'Authorization':'Bearer '+s.accessToken,'Content-Type':'application/json'},",
+  "body:JSON.stringify({billing_details:{country:'US',currency:'usd'}})",
+  "}).then(r=>r.json())})",
+  ".then(d=>{",
+  "console.log('checkout response:',d);",
+  "if(!d.checkout_session_id)throw new Error(d.detail||d.message||'\u521b\u5efacheckout\u5931\u8d25');",
+  "const url='https://chatgpt.com/checkout/openai_llc/'+d.checkout_session_id;",
+  "copy(url);prompt('\\u2705 \u957f\u94fe\u63a5\u5df2\u590d\u5236\u5230\u526a\u8d34\u677f\uff1a',url)})",
+  ".catch(e=>alert('\\u274c '+e.message))",
+].join('');
 
 const SUPPORTED_FORMATS = [
   'ZIP',
