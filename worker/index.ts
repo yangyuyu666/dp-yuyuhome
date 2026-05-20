@@ -308,6 +308,72 @@ export default {
       }
     }
 
+    if (url.pathname === '/api/tools/chatgpt-checkout' && request.method === 'POST') {
+      try {
+        const body = (await request.json()) as { accessToken?: string };
+        const accessToken = typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+
+        if (!accessToken) {
+          return json({ error: 'accessToken is required' }, { status: 400 });
+        }
+
+        const checkoutRes = await fetch(
+          'https://chatgpt.com/backend-api/payments/checkout',
+          {
+            method: 'POST',
+            headers: {
+              'authorization': `Bearer ${accessToken}`,
+              'content-type': 'application/json',
+              'accept': 'application/json',
+              'user-agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'origin': 'https://chatgpt.com',
+              'referer': 'https://chatgpt.com/',
+              'oai-language': 'en-US',
+            },
+            body: JSON.stringify({
+              plan_name: 'chatgptplusplan',
+              checkout_ui_mode: 'hosted',
+            }),
+          },
+        );
+
+        const text = await checkoutRes.text().catch(() => '');
+        const ct = checkoutRes.headers.get('content-type') ?? '';
+
+        if (!checkoutRes.ok) {
+          let msg = `ChatGPT returned ${checkoutRes.status}`;
+          if (ct.includes('json')) {
+            try {
+              const e = JSON.parse(text) as { detail?: string; message?: string };
+              msg = e.detail || e.message || msg;
+            } catch { /* */ }
+          } else if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+            msg += ' (HTML response - likely blocked by Cloudflare)';
+          }
+          return json({ error: msg }, { status: checkoutRes.status });
+        }
+
+        if (!ct.includes('json')) {
+          return json({ error: 'Non-JSON response' }, { status: 502 });
+        }
+
+        const data = JSON.parse(text) as Record<string, unknown>;
+        const checkoutUrl =
+          (data.url as string) ||
+          (data.checkout_session_id
+            ? `https://chatgpt.com/checkout/openai_llc/${data.checkout_session_id as string}`
+            : '');
+
+        return json({ ...data, url: checkoutUrl });
+      } catch (err) {
+        return json(
+          { error: err instanceof Error ? err.message : 'Unknown error' },
+          { status: 500 },
+        );
+      }
+    }
+
     const response = await env.ASSETS.fetch(request);
     const contentType = response.headers.get('content-type') ?? '';
 
