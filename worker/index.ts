@@ -326,32 +326,46 @@ export default {
               'content-type': 'application/json',
               'user-agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-              'accept': '*/*',
+              'accept': 'application/json',
+              'accept-language': 'en-US,en;q=0.9',
               'origin': 'https://chatgpt.com',
               'referer': 'https://chatgpt.com/',
+              'oai-language': 'en-US',
             },
+            body: '{}',
           },
         );
 
+        const responseText = await checkoutResponse.text().catch(() => '');
+        const contentType = checkoutResponse.headers.get('content-type') ?? '';
+
         if (!checkoutResponse.ok) {
-          const errorText = await checkoutResponse.text().catch(() => '');
           let errorMessage = `ChatGPT 返回 ${checkoutResponse.status}`;
 
-          try {
-            const errorJson = JSON.parse(errorText) as { detail?: string };
-            if (errorJson.detail) {
-              errorMessage = errorJson.detail;
+          if (contentType.includes('application/json')) {
+            try {
+              const errorJson = JSON.parse(responseText) as { detail?: string; error?: string };
+              errorMessage = errorJson.detail || errorJson.error || errorMessage;
+            } catch {
+              /* keep default */
             }
-          } catch {
-            if (errorText) {
-              errorMessage = errorText.slice(0, 200);
-            }
+          } else if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+            errorMessage += '（返回了 HTML 页面，可能被 Cloudflare 拦截或 token 已过期）';
+          } else if (responseText) {
+            errorMessage = responseText.slice(0, 300);
           }
 
           return json({ error: errorMessage }, { status: checkoutResponse.status });
         }
 
-        const data = (await checkoutResponse.json()) as Record<string, unknown>;
+        if (!contentType.includes('application/json')) {
+          return json(
+            { error: '响应格式异常（非 JSON），请检查 token 是否有效' },
+            { status: 502 },
+          );
+        }
+
+        const data = JSON.parse(responseText) as Record<string, unknown>;
         return json(data);
       } catch (error) {
         return json(
