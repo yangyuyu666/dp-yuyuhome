@@ -62,11 +62,10 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 
 ### ChatGPT Plus Checkout Link
 
-- The ChatGPT Plus tool lets users paste their ChatGPT `accessToken` to obtain a Stripe checkout URL for Plus subscription.
-- The frontend sends the token to `POST /api/tools/chatgpt-checkout` on the Worker.
-- The Worker proxies the request to `https://chatgpt.com/backend-api/payments/checkout` with the user's token and returns the response.
-- The token is not stored or logged; it is only used for the single proxied request.
-- The resulting Stripe URL is displayed in the UI with copy-to-clipboard and open-in-new-tab buttons.
+- The ChatGPT checkout tool provides a one-click-copyable console script.
+- Users paste the script into the browser console on `chatgpt.com` to automatically fetch and copy the Stripe checkout URL.
+- The script runs entirely in the user's browser using their existing login session; no server-side proxy is involved.
+- The tool page shows step-by-step instructions and a copy button for the script.
 
 ## Common Commands
 
