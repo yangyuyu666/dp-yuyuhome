@@ -165,6 +165,13 @@ const RECOMMENDED_WEBSITES = [
     category: '网络检测',
     icon: ShieldCheck,
   },
+  {
+    name: '美国地址生成',
+    url: 'https://www.meiguodizhi.com/',
+    description: '生成美国地址资料，适合测试表单、地址字段和地区信息填写流程。',
+    category: '测试数据',
+    icon: Globe2,
+  },
 ] as const;
 
 const CHATGPT_PLUS_LINKS = [
