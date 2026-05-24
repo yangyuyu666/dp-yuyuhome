@@ -10,7 +10,6 @@ import {
   Archive as ArchiveIcon,
   ArrowLeft,
   CheckCircle2,
-  Copy,
   CreditCard,
   Download,
   ExternalLink,
@@ -144,7 +143,6 @@ const SIDEBAR_ITEMS = [
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
   { id: 'compress', name: '压缩工具', icon: Files },
   { id: 'sites', name: '推荐网站', icon: Globe2 },
-  { id: 'chatgpt-plus', name: 'ChatGPT 提取长链接', icon: CreditCard },
   { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
@@ -173,39 +171,6 @@ const RECOMMENDED_WEBSITES = [
     icon: Globe2,
   },
 ] as const;
-
-const CHATGPT_PLUS_LINKS = [
-  {
-    name: 'ChatGPT Plus 官方页面',
-    url: 'https://chatgpt.com/plans/plus',
-    description: '登录 ChatGPT 后从官方页面继续升级流程。',
-  },
-  {
-    name: 'OpenAI ChatGPT 价格页',
-    url: 'https://openai.com/chatgpt/pricing/',
-    description: '查看 Plus、Pro、Business 等官方套餐说明。',
-  },
-  {
-    name: 'Plus 帮助中心',
-    url: 'https://help.openai.com/en/articles/6950777-chatgpt-plus',
-    description: '查看 Plus 订阅、账单和升级说明。',
-  },
-] as const;
-
-const CHATGPT_CHECKOUT_SCRIPT = [
-  "(async()=>{try{",
-  "const s=await(await fetch('/api/auth/session')).json();",
-  "if(!s.accessToken)throw new Error('Please log in to ChatGPT first');",
-  "const r=await fetch('/backend-api/payments/checkout',{",
-  "method:'POST',headers:{'Authorization':'Bearer '+s.accessToken,",
-  "'Content-Type':'application/json'},",
-  "body:JSON.stringify({plan_name:'chatgptplusplan',checkout_ui_mode:'hosted'})});",
-  "const d=await r.json();console.log('checkout:',d);",
-  "const url=d.url||('https://chatgpt.com/checkout/openai_llc/'+d.checkout_session_id);",
-  "if(!url||url==='undefined')throw new Error(d.detail||d.message||JSON.stringify(d));",
-  "copy(url);prompt('Checkout URL copied:',url)",
-  "}catch(e){alert(e.message)}})()",
-].join('');
 
 const SUPPORTED_FORMATS = [
   'ZIP',
@@ -600,46 +565,6 @@ export default function ToolsPage() {
   const [compressionOutputName, setCompressionOutputName] = useState(defaultArchiveName('zip'));
   const [compressionState, setCompressionState] = useState<CompressionState>({ status: 'idle' });
   const [isCompressionDragActive, setIsCompressionDragActive] = useState(false);
-
-  const [chatgptToken, setChatgptToken] = useState('');
-  const [checkoutUrl, setCheckoutUrl] = useState('');
-  const [checkoutError, setCheckoutError] = useState('');
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [checkoutCopied, setCheckoutCopied] = useState(false);
-  const [scriptCopied, setScriptCopied] = useState(false);
-
-  const fetchCheckoutUrl = async () => {
-    const raw = chatgptToken.trim();
-    if (!raw) { setCheckoutError('请粘贴 session 数据'); return; }
-    let token = raw;
-    try {
-      const p = JSON.parse(raw) as Record<string, unknown>;
-      if (typeof p.accessToken === 'string' && p.accessToken) token = p.accessToken;
-    } catch { /* raw token */ }
-    setCheckoutLoading(true); setCheckoutError(''); setCheckoutUrl('');
-    try {
-      const res = await fetch('/api/tools/chatgpt-checkout', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ accessToken: token }),
-      });
-      const data = (await res.json()) as Record<string, unknown>;
-      if (!res.ok) throw new Error((data.error as string) || `Error ${res.status}`);
-      const u = (data.url as string) || '';
-      if (!u) throw new Error('未获取到支付链接');
-      setCheckoutUrl(u);
-    } catch (e) {
-      setCheckoutError(e instanceof Error ? e.message : '获取失败');
-    } finally { setCheckoutLoading(false); }
-  };
-
-  const copyToClipboard = async (text: string, setter: (v: boolean) => void) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setter(true);
-      window.setTimeout(() => setter(false), 2500);
-    } catch { /* */ }
-  };
 
   useEffect(() => {
     if (!activeSecret) {
@@ -1734,167 +1659,7 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {activeTab === 'chatgpt-plus' && (
-            <div className="mx-auto flex max-w-5xl flex-col gap-6 md:gap-8">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    ChatGPT 提取长链接
-                  </h1>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                    粘贴 session 页面内容，自动提取 token 并获取 Stripe 支付长链接。
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
-                  <ShieldCheck className="h-4 w-4" />
-                  Token 不留存
-                </div>
-              </div>
-
-              <section className="grid gap-6 md:mt-4 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-slate-700" htmlFor="chatgpt-session-input">
-                      Session 数据 / Access Token
-                    </label>
-                    <textarea
-                      id="chatgpt-session-input"
-                      value={chatgptToken}
-                      onChange={(e) => { setChatgptToken(e.target.value); setCheckoutError(''); }}
-                      placeholder={'打开 https://chatgpt.com/api/auth/session\n全选复制后粘贴到这里\n\n支持完整 JSON 或单独的 accessToken'}
-                      className="min-h-36 w-full rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 font-mono text-sm text-slate-800 outline-none transition focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
-                      spellCheck={false}
-                    />
-                    <div className="flex flex-wrap items-center gap-3 pt-2">
-                      <button
-                        type="button"
-                        disabled={checkoutLoading}
-                        onClick={() => void fetchCheckoutUrl()}
-                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm shadow-violet-600/20 transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-                      >
-                        {checkoutLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                        获取长链接
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setChatgptToken(''); setCheckoutUrl(''); setCheckoutError(''); }}
-                        className="flex-1 rounded-lg border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 sm:flex-none"
-                      >
-                        清空
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 rounded-2xl border border-amber-200/60 bg-amber-50/50 p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                      <div className="text-sm leading-6 text-amber-800">
-                        <p className="font-semibold">如何获取？</p>
-                        <ol className="mt-2 list-inside list-decimal space-y-1 text-amber-700">
-                          <li>登录 <a href="https://chatgpt.com" target="_blank" rel="noreferrer" className="underline">chatgpt.com</a></li>
-                          <li>新标签页打开下方链接：</li>
-                        </ol>
-                        <a href="https://chatgpt.com/api/auth/session" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white/70 px-3 py-2 font-mono text-xs text-amber-900 hover:bg-white">
-                          https://chatgpt.com/api/auth/session
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                        <p className="mt-2 text-xs text-amber-600">Ctrl+A 全选 → Ctrl+C 复制 → 粘贴到上方输入框</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 p-5 text-white shadow-xl sm:p-8">
-                  <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-                  <p className="relative z-10 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-400">Checkout Link</p>
-                  <div className="relative z-10 mt-8">
-                    {!checkoutUrl && !checkoutError && !checkoutLoading && (
-                      <p className="text-sm leading-relaxed text-slate-400">
-                        粘贴 session 数据并点击“获取长链接”后，这里会显示 Stripe 支付链接。
-                      </p>
-                    )}
-                    {checkoutLoading && (
-                      <p className="flex items-center gap-2 text-sm text-slate-400">
-                        <RefreshCw className="h-4 w-4 animate-spin" />正在获取...
-                      </p>
-                    )}
-                    {checkoutError && (
-                      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-6 text-red-200">
-                        {checkoutError}
-                      </div>
-                    )}
-                    {checkoutUrl && (
-                      <div className="space-y-5">
-                        <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-5 backdrop-blur-sm">
-                          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-400">支付链接</p>
-                          <p className="break-all font-mono text-sm leading-6 text-emerald-300">{checkoutUrl}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          <button
-                            type="button"
-                            onClick={() => void copyToClipboard(checkoutUrl, setCheckoutCopied)}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 sm:flex-none"
-                          >
-                            {checkoutCopied
-                              ? <><CheckCircle2 className="h-4 w-4" />已复制</>
-                              : <><Copy className="h-4 w-4" />复制链接</>}
-                          </button>
-                          <a
-                            href={checkoutUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 sm:flex-none"
-                          >
-                            <ExternalLink className="h-4 w-4" />打开链接
-                          </a>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <details className="relative z-10 mt-8">
-                    <summary className="cursor-pointer text-xs font-medium text-slate-400 transition hover:text-slate-300">
-                      备用方案：控制台脚本
-                    </summary>
-                    <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                      <pre className="overflow-x-auto whitespace-pre-wrap break-all font-mono text-xs leading-5 text-emerald-300/70">
-                        {CHATGPT_CHECKOUT_SCRIPT}
-                      </pre>
-                      <button
-                        type="button"
-                        onClick={() => void copyToClipboard(CHATGPT_CHECKOUT_SCRIPT, setScriptCopied)}
-                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-600"
-                      >
-                        {scriptCopied
-                          ? <><CheckCircle2 className="h-3 w-3" />已复制</>
-                          : <><Copy className="h-3 w-3" />复制脚本</>}
-                      </button>
-                    </div>
-                  </details>
-                </div>
-              </section>
-
-              <section className="grid gap-3 sm:grid-cols-3">
-                {CHATGPT_PLUS_LINKS.map((link) => (
-                  <a
-                    key={link.url}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-violet-200 hover:shadow-md"
-                  >
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">{link.name}</h3>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">{link.description}</p>
-                    </div>
-                    <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                  </a>
-                ))}
-              </section>
-            </div>
-          )}
-
-          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && activeTab !== 'chatgpt-plus' && (
+          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
               <LayoutGrid className="h-12 w-12 opacity-20" />
               <p>该工具正在开发中，敬请期待...</p>
