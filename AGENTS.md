@@ -42,9 +42,10 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 ### Archive Extraction
 
 - Archive extraction is done entirely in the browser.
-- It uses `libarchive.js`, loaded from the React bundle, plus:
+- Most non-RAR formats use `libarchive.js`, loaded from the React bundle, plus:
   - `/libarchive/worker-bundle.js`
   - `/libarchive/libarchive.wasm`
+- RAR files use `node-unrar-js` from the browser memory API because `libarchive.js` can fail on some RAR archives with errors such as `Unsupported block header size`.
 - It does not call WinRAR, 7-Zip, system shell commands, or backend extraction.
 - Supported formats are shown in the UI: ZIP, 7z, RAR v4/v5, TAR, GZIP, BZIP2, XZ, LZMA, DEFLATE.
 - After extraction, users can download single files or use `保存为文件夹`.

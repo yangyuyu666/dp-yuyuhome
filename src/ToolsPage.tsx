@@ -5,6 +5,8 @@ import {
   ArchiveFormat,
 } from 'libarchive.js';
 import { BlobReader, BlobWriter, ZipWriter } from '@zip.js/zip.js';
+import { createExtractorFromData } from 'node-unrar-js/esm/index.esm.js';
+import unrarWasmUrl from 'node-unrar-js/esm/js/unrar.wasm?url';
 import {
   AlertTriangle,
   Archive as ArchiveIcon,
@@ -184,6 +186,27 @@ const SUPPORTED_FORMATS = [
   'DEFLATE',
 ];
 
+const SUPPORTED_ARCHIVE_EXTENSIONS = [
+  '.zip',
+  '.7z',
+  '.rar',
+  '.tar',
+  '.tar.gz',
+  '.tgz',
+  '.tar.bz2',
+  '.tbz',
+  '.tbz2',
+  '.tar.xz',
+  '.txz',
+  '.tar.lzma',
+  '.gz',
+  '.gzip',
+  '.bz2',
+  '.xz',
+  '.lzma',
+  '.deflate',
+];
+
 const COMPRESSION_PRESETS: Record<
   CompressionPresetId,
   {
@@ -262,6 +285,19 @@ function buildEntryPath(path: string, name: string) {
   }
 
   return `${normalizedPath.replace(/\/+$/, '')}/${normalizedName}`;
+}
+
+function isSupportedArchiveFile(fileName: string) {
+  const normalizedName = fileName.toLowerCase();
+  return SUPPORTED_ARCHIVE_EXTENSIONS.some((extension) => normalizedName.endsWith(extension));
+}
+
+function isRarArchiveFile(fileName: string) {
+  return fileName.toLowerCase().endsWith('.rar');
+}
+
+function unsupportedArchiveMessage(fileName: string) {
+  return `“${fileName}”不是可解压的压缩包。请上传 ZIP、7z、RAR、TAR、GZ、BZ2、XZ 或 LZMA 等压缩文件。PDF、Word、图片这类普通文件不能在这里解压。`;
 }
 
 function downloadFile(file: File, path: string) {
@@ -416,6 +452,64 @@ function flattenExtractedFiles(tree: unknown, basePath = '', files = new Map<str
   });
 
   return files;
+}
+
+async function extractRarArchive(file: File, password: string) {
+  const [data, wasmBinary] = await Promise.all([
+    file.arrayBuffer(),
+    fetch(unrarWasmUrl).then((response) => response.arrayBuffer()),
+  ]);
+  const extractor = await createExtractorFromData({
+    data,
+    wasmBinary,
+    password: password || undefined,
+  });
+  const list = extractor.getFileList();
+
+  if (list.arcHeader.flags.volume) {
+    throw new Error('当前不支持分卷 RAR，请先把所有分卷合并或上传完整的单个 RAR 文件');
+  }
+
+  const fileHeaders = [...list.fileHeaders];
+  const encrypted =
+    list.arcHeader.flags.headerEncrypted ||
+    fileHeaders.some((header) => header.flags.encrypted);
+  const entries = fileHeaders
+    .filter((header) => !header.flags.directory)
+    .map((header, index) => {
+      const path = header.name.replaceAll('\\', '/').replace(/^\/+/, '');
+      const name = path.split('/').pop() || `file-${index + 1}`;
+      return {
+        id: `${path}-${index}`,
+        name,
+        path,
+        size: header.unpSize ?? 0,
+        status: 'waiting' as const,
+      };
+    });
+
+  if (encrypted && !password) {
+    return { encrypted, entries, extracted: new Map<string, File>() };
+  }
+
+  const extracted = new Map<string, File>();
+  const extractedFiles = [...extractor.extract({ password: password || undefined }).files];
+
+  extractedFiles.forEach((item) => {
+    if (item.fileHeader.flags.directory || !item.extraction) {
+      return;
+    }
+
+    const path = item.fileHeader.name.replaceAll('\\', '/').replace(/^\/+/, '');
+    const name = path.split('/').pop() || item.fileHeader.name;
+    const extractedFile = new File([item.extraction], name, {
+      type: 'application/octet-stream',
+    });
+    extracted.set(path, extractedFile);
+    extracted.set(name, extractedFile);
+  });
+
+  return { encrypted, entries, extracted };
 }
 
 function sourcePathForFile(file: File, fallbackPrefix = '') {
@@ -636,6 +730,16 @@ export default function ToolsPage() {
   const selectArchiveFile = (file: File | null) => {
     setArchiveFile(file);
     setFolderSaveState({ status: 'idle' });
+
+    if (file && !isSupportedArchiveFile(file.name)) {
+      setArchiveState({
+        status: 'error',
+        message: unsupportedArchiveMessage(file.name),
+        entries: [],
+      });
+      return;
+    }
+
     setArchiveState(
       file
         ? { status: 'idle', message: `已选择：${file.name}` }
@@ -645,10 +749,65 @@ export default function ToolsPage() {
 
   const readArchive = async (file: File) => {
     setFolderSaveState({ status: 'idle' });
+
+    if (!isSupportedArchiveFile(file.name)) {
+      setArchiveState({
+        status: 'error',
+        message: unsupportedArchiveMessage(file.name),
+        entries: [],
+      });
+      return;
+    }
+
     setArchiveState({
       status: 'reading',
       message: '正在读取目录并准备解压...',
     });
+
+    if (isRarArchiveFile(file.name)) {
+      try {
+        const { encrypted, entries, extracted } = await extractRarArchive(
+          file,
+          archivePassword.trim(),
+        );
+
+        if (encrypted && !archivePassword.trim()) {
+          setArchiveState({
+            status: 'listed',
+            message: '这个 RAR 压缩包已加密，请输入密码后再解压',
+            encrypted,
+            entries,
+          });
+          return;
+        }
+
+        const readyEntries = entries.map((entry) => ({
+          ...entry,
+          file: extracted.get(entry.path) ?? extracted.get(entry.name),
+          status:
+            extracted.has(entry.path) || extracted.has(entry.name)
+              ? ('extracted' as const)
+              : entry.status,
+        }));
+
+        setArchiveState({
+          status: 'ready',
+          message: `已在前端解压 ${readyEntries.filter((entry) => entry.file).length} 个文件`,
+          encrypted,
+          entries: readyEntries,
+        });
+      } catch (error) {
+        setArchiveState({
+          status: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'RAR 解压失败，请确认文件没有损坏，或输入正确密码',
+          entries: [],
+        });
+      }
+      return;
+    }
 
     let archive: Awaited<ReturnType<typeof LibArchive.open>> | null = null;
 
@@ -715,7 +874,11 @@ export default function ToolsPage() {
         status: 'error',
         message:
           error instanceof Error
-            ? error.message
+            ? error.message.includes('Unsupported block header') ||
+              error.message.includes('Invalid archive') ||
+              error.message.includes('Unrecognized archive')
+              ? unsupportedArchiveMessage(file.name)
+              : error.message
             : '解压失败，请确认格式是否受支持，或为加密压缩包输入正确密码',
         entries: 'entries' in current ? current.entries : [],
       }));
@@ -1072,6 +1235,7 @@ export default function ToolsPage() {
                       <input
                         id="archive-file"
                         type="file"
+                        accept={SUPPORTED_ARCHIVE_EXTENSIONS.join(',')}
                         className="sr-only"
                         onChange={(event) => {
                           selectArchiveFile(event.target.files?.[0] ?? null);
