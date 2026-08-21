@@ -14,7 +14,9 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 
 - `src/main.tsx`: chooses between `App` and `ToolsPage`.
 - `src/App.tsx`: the main memory/photo site.
-- `src/ToolsPage.tsx`: tools dashboard. Current tools include 2FA, browser-side archive extraction, and browser-side archive creation.
+- `src/ToolsPage.tsx`: tools dashboard shell. Current tools include 2FA, browser-side archive extraction/creation, and the image tools entry.
+- `src/ImageToolsPage.tsx`: browser-side image format conversion plus encrypted noise-PNG creation and decryption UI.
+- `src/imageTools.ts`: image conversion, AES-GCM encryption, and private PNG chunk helpers.
 - `src/index.css`: Tailwind import, theme fonts, global body styles.
 - `worker/index.ts`: Cloudflare Worker entry, auth gate, metadata rewrite, API routes.
 - `worker/totp.ts`: TOTP generation logic for `/api/tools/totp`.
@@ -60,6 +62,15 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 - TAR, TAR.GZ, TAR.BZ2, TAR.XZ, and TAR.LZMA use `libarchive.js`.
 - The compression tool accepts multiple files, whole folders via `webkitdirectory`, and drag-and-drop files/folders.
 - Folder uploads rely on browser-specific file path APIs; Chrome and Edge are the practical target browsers.
+
+### Image Tools
+
+- Image processing is entirely browser-side and does not upload images or keys.
+- Format conversion supports one JPEG, PNG, or WebP image at a time. It preserves dimensions, replaces only the file extension, and removes EXIF metadata while re-encoding.
+- Image encryption derives an AES-256-GCM key from the user passphrase with PBKDF2-HMAC-SHA-256 and writes the encrypted original into a private `dyIm` chunk inside a noise PNG.
+- Encrypted images use the name `<original-base>_encrypted.png`; decryption restores the original filename and bytes.
+- Keys are never persisted. Losing the key makes the encrypted image unrecoverable.
+- Encrypted PNG files must be preserved or sent as files. Image recompression, resizing, or metadata/chunk cleanup can make them impossible to decrypt.
 
 ### ChatGPT Plus Checkout Link
 

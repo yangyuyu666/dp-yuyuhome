@@ -7,6 +7,7 @@ import {
 import { BlobReader, BlobWriter, ZipWriter } from '@zip.js/zip.js';
 import { createExtractorFromData } from 'node-unrar-js/esm/index.esm.js';
 import unrarWasmUrl from 'node-unrar-js/esm/js/unrar.wasm?url';
+import ImageToolsPage from './ImageToolsPage';
 import {
   AlertTriangle,
   Archive as ArchiveIcon,
@@ -144,8 +145,8 @@ const SIDEBAR_ITEMS = [
   { id: '2fa', name: '2FA 密钥计算器', icon: KeyRound },
   { id: 'extract', name: '解压缩工具', icon: FileArchive },
   { id: 'compress', name: '压缩工具', icon: Files },
+  { id: 'image', name: '图片工具', icon: ImageIcon },
   { id: 'sites', name: '推荐网站', icon: Globe2 },
-  { id: 'image', name: '图片压缩（待开发）', icon: ImageIcon },
   { id: 'json', name: 'JSON 格式化（待开发）', icon: FileJson },
   { id: 'regex', name: '正则测试（待开发）', icon: Terminal },
 ] as const;
@@ -1751,6 +1752,8 @@ export default function ToolsPage() {
             </div>
           )}
 
+          {activeTab === 'image' && <ImageToolsPage />}
+
           {activeTab === 'sites' && (
             <div className="mx-auto flex max-w-6xl flex-col gap-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1823,7 +1826,7 @@ export default function ToolsPage() {
             </div>
           )}
 
-          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'sites' && (
+          {activeTab !== '2fa' && activeTab !== 'extract' && activeTab !== 'compress' && activeTab !== 'image' && activeTab !== 'sites' && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-slate-400">
               <LayoutGrid className="h-12 w-12 opacity-20" />
               <p>该工具正在开发中，敬请期待...</p>

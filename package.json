@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:image-tools": "tsx scripts/image-tools.test.ts",
     "preview": "vite preview --host 0.0.0.0 --port 8080",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit",
