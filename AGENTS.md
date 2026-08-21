@@ -68,6 +68,7 @@ This repository is a Cloudflare Workers + Vite + React site for `dploveyuyu.site
 - Image processing is entirely browser-side and does not upload images or keys.
 - Format conversion supports one JPEG, PNG, or WebP image at a time. It preserves dimensions, replaces only the file extension, and removes EXIF metadata while re-encoding.
 - Image encryption derives an AES-256-GCM key from the user passphrase with PBKDF2-HMAC-SHA-256 and writes the encrypted original into a private `dyIm` chunk inside a noise PNG.
+- Passphrases may contain any non-empty sequence of characters, including a single character or whitespace. The input is used exactly as entered and is not padded.
 - Encrypted images use the name `<original-base>_encrypted.png`; decryption restores the original filename and bytes.
 - Keys are never persisted. Losing the key makes the encrypted image unrecoverable.
 - Encrypted PNG files must be preserved or sent as files. Image recompression, resizing, or metadata/chunk cleanup can make them impossible to decrypt.

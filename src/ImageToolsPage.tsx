@@ -389,7 +389,7 @@ export default function ImageToolsPage() {
                   value={passphrase}
                   onChange={(event) => setPassphrase(event.target.value)}
                   autoComplete="off"
-                  placeholder="至少 8 个字符，空格也属于密钥"
+                  placeholder="密钥不能为空，支持任意长度"
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm outline-none transition focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
                 />
                 <button
@@ -414,7 +414,7 @@ export default function ImageToolsPage() {
               )}
 
               <p className="mt-3 text-xs leading-5 text-slate-400">
-                密钥只保留在当前页面内存中，刷新或关闭页面后即消失，也无法找回。
+                输入内容会原样用于派生密钥，不会自动补零或空格。密钥只保留在当前页面内存中，刷新或关闭页面后即消失，也无法找回。
               </p>
             </div>
           )}

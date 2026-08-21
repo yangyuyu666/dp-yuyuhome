@@ -31,15 +31,16 @@ function findSequence(bytes: Uint8Array, sequence: Uint8Array) {
 async function main() {
   assert.equal(convertedImageName('旅行.原图.JPEG', 'image/webp'), '旅行.原图.webp');
   assert.equal(encryptedImageName('旅行.原图.JPEG'), '旅行.原图_encrypted.png');
-  assert.throws(() => validatePassphrase('short'), /至少需要 8 个字符/);
-  assert.throws(() => validatePassphrase('        '), /不能全部为空白/);
+  assert.throws(() => validatePassphrase(''), /密钥不能为空/);
+  assert.doesNotThrow(() => validatePassphrase('1'));
+  assert.doesNotThrow(() => validatePassphrase(' '));
 
   const originalBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 0xff, 0xd9]);
   const original = new File([originalBytes], '旅行.原图.JPEG', {
     type: 'image/jpeg',
     lastModified: 1_725_000_000_000,
   });
-  const passphrase = '正确 密钥 123';
+  const passphrase = '1';
   const payload = await createEncryptedPayload(original, passphrase);
   const encryptedPng = attachEncryptedPayload(ONE_PIXEL_PNG, payload);
   const extracted = extractEncryptedPayload(encryptedPng);
@@ -56,7 +57,7 @@ async function main() {
   });
 
   await rejectsWith(
-    () => decryptEncryptedPayload(extracted, '错误 密钥 123'),
+    () => decryptEncryptedPayload(extracted, '2'),
     /密钥错误，或加密图片已经损坏/,
   );
 

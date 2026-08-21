@@ -140,8 +140,8 @@ export function encryptedImageName(name: string) {
 }
 
 export function validatePassphrase(passphrase: string) {
-  if (Array.from(passphrase).length < 8 || !/\S/u.test(passphrase)) {
-    throw new Error('密钥至少需要 8 个字符，且不能全部为空白');
+  if (Array.from(passphrase).length === 0) {
+    throw new Error('密钥不能为空');
   }
 }
 
